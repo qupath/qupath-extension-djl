@@ -1,0 +1,79 @@
+plugins {
+  id 'java-library'
+  // To manage included native libraries
+  alias(libs.plugins.javacpp)
+}
+
+ext.moduleName = 'qupath.extension.djl'
+ext.qupathVersion = gradle.ext.qupathVersion
+
+description = 'QuPath extension to use Deep Java Library'
+
+version = "0.1.0-SNAPSHOT"
+
+def djlVersion = libs.versions.deepJavaLibrary.get()
+
+dependencies {
+    implementation "io.github.qupath:qupath-gui-fx:${qupathVersion}"
+        
+    // These are included in QuPath distributions
+    implementation libs.bundles.logging
+    implementation libs.snakeyaml
+    
+    implementation "ai.djl:api:$djlVersion"
+    
+    testImplementation libs.junit
+    testRuntimeOnly libs.junit.engine
+
+}
+
+processResources {
+  from ("${projectDir}/LICENSE.txt") {
+    into 'licenses/'
+  }
+}
+
+tasks.register("copyDependencies", Copy) {
+    description "Copy dependencies into the build directory for use elsewhere"
+    group "QuPath"
+
+    from configurations.default
+    into 'build/libs'
+}
+
+/*
+ * Ensure Java 11 compatibility
+ */
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+    if (project.properties['sources'])
+	    withSourcesJar()
+    if (project.properties['javadocs'])
+	    withJavadocJar()
+
+}
+
+/*
+ * Create javadocs for all modules/packages in one place.
+ * Use -PstrictJavadoc=true to fail on error with doclint (which is rather strict).
+ */
+def strictJavadoc = findProperty('strictJavadoc')
+if (!strictJavadoc) {
+    tasks.withType(Javadoc) {
+        options.addStringOption('Xdoclint:none', '-quiet')
+    }
+}
+
+/*
+ * Avoid 'Entry .gitkeep is a duplicate but no duplicate handling strategy has been set.'
+ * when using withSourcesJar()
+ */
+tasks.withType(org.gradle.jvm.tasks.Jar) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
