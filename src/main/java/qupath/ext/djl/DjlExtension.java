@@ -25,6 +25,7 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.extensions.GitHubProject;
 import qupath.lib.gui.extensions.QuPathExtension;
 import qupath.lib.gui.tools.MenuTools;
+import qupath.opencv.dnn.DnnModelBuilder;
 import qupath.opencv.dnn.DnnModels;
 
 /**
@@ -35,6 +36,8 @@ import qupath.opencv.dnn.DnnModels;
 public class DjlExtension implements QuPathExtension, GitHubProject {
 	
 	private final static Logger logger = LoggerFactory.getLogger(DjlExtension.class);
+	
+	private final static DnnModelBuilder<?> builder = new DjlDnnModelBuilder();
 	
 	static {
 		// Prevent downloading engines automatically
@@ -48,6 +51,9 @@ public class DjlExtension implements QuPathExtension, GitHubProject {
 		logger.debug("Installing Deep Java Library extension");
 		logger.info("Registering DjlDnnModel");
 		DnnModels.registerDnnModel(DjlDnnModel.class, DjlDnnModel.class.getSimpleName());
+		// Use this instead of a ServiceLoader for now, because we can't rely upon 
+		// the context class loader finding the builder
+		DnnModels.registerBuilder(builder);
 		MenuTools.addMenuItems(
                 qupath.getMenu("Extensions>Deep Java Library", true),
                 new Action("Manage DJL Engines", e -> DjlEngineCommand.showDialog(qupath))

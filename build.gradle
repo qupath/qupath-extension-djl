@@ -56,6 +56,13 @@ java {
 }
 
 /*
+ * Set encoding
+ */
+tasks.named('compileJava') {
+	options.encoding = 'UTF-8'
+}
+
+/*
  * Manifest info
  */
 jar {
@@ -70,11 +77,12 @@ jar {
  * Create javadocs for all modules/packages in one place.
  * Use -PstrictJavadoc=true to fail on error with doclint (which is rather strict).
  */
-def strictJavadoc = findProperty('strictJavadoc')
-if (!strictJavadoc) {
-    tasks.withType(Javadoc) {
+tasks.withType(Javadoc) {
+	options.encoding = 'UTF-8'
+	def strictJavadoc = findProperty('strictJavadoc')
+	if (!strictJavadoc) {
         options.addStringOption('Xdoclint:none', '-quiet')
-    }
+	}
 }
 
 /*
