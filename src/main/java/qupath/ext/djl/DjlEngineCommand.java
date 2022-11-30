@@ -16,6 +16,7 @@
 
 package qupath.ext.djl;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -54,6 +55,7 @@ import javafx.stage.Stage;
 import qupath.lib.common.GeneralTools;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
+import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.tools.GuiTools;
 import qupath.lib.gui.tools.PaneTools;
 
@@ -206,6 +208,28 @@ public class DjlEngineCommand {
 			labelPathLabel.setLabelFor(labelPath);
 			labelPathLabel.setContentDisplay(ContentDisplay.LEFT);
 
+			var tip = new Tooltip();
+			status.addListener((v, o, n) -> {
+				if (Files.isDirectory(path)) {
+					tip.setText("Double-click to open engine path");
+				} else {
+					labelPath.setStyle("-fx-opacity: 0.5;");
+					tip.setText("Engine path does not exist");	
+				}				
+			});
+			labelPathLabel.setTooltip(tip);
+			labelPath.setOnMouseClicked(e -> {
+				if (e.getClickCount() == 2 && Files.isDirectory(path))
+					GuiTools.browseDirectory(path.toFile());
+				else
+					logger.debug("Cannot open {} - directory does not exist", path);
+			});
+			PaneTools.addGridRow(pane, row++, 0, null, labelPathLabel, labelPath);
+			PaneTools.addGridRow(pane, row++, 0, null, btnDownload, btnDownload);
+			
+			PaneTools.setToExpandGridPaneWidth(labelName, labelPath, btnDownload);
+
+			// Finally, try to actually get the engine
 			Engine engine = null;
 			try {
 				engine = DjlTools.getEngine(name, false);
@@ -217,23 +241,6 @@ public class DjlEngineCommand {
 			else {
 				status.set(EngineStatus.UNAVAILABLE);
 			}
-
-			if (Files.isDirectory(path)) {
-				tooltip = "Double-click to open engine path";
-			} else {
-				labelPath.setStyle("-fx-opacity: 0.5;");
-				tooltip = "Engine path does not exist - engine not downloaded";	
-			}
-			labelPath.setOnMouseClicked(e -> {
-				if (e.getClickCount() == 2 && Files.isDirectory(path))
-					GuiTools.browseDirectory(path.toFile());
-				else
-					logger.debug("Cannot open {} - directory does not exist", path);
-			});
-			PaneTools.addGridRow(pane, row++, 0, tooltip, labelPathLabel, labelPath);
-			PaneTools.addGridRow(pane, row++, 0, tooltip, btnDownload, btnDownload);
-			
-			PaneTools.setToExpandGridPaneWidth(labelName, labelPath, btnDownload);
 		}
 		
 		stage = new Stage();
@@ -314,6 +321,21 @@ public class DjlEngineCommand {
 			if (engine != null) {
 				updateStatus(status, EngineStatus.AVAILABLE);
 				Dialogs.showInfoNotification(TITLE, name + " is now available!");
+			} else {
+				updateStatus(status, EngineStatus.UNAVAILABLE);
+				// If we should have TensorFlow - but don't for some reason - then try to help
+				// (If we're running on a Mac, then warnings for the likely explanation have already been shown)
+				if (DjlTools.ENGINE_TENSORFLOW.equals(name) && DjlTools.hasEngine(DjlTools.ENGINE_TENSORFLOW) && !GeneralTools.isMac()) {
+					var pathConfig = PathPrefs.getConfigPath();
+					logger.warn("Unable to find TensorFlow - this might be a problem with the java.library.path or missing Visual Studio Redistributables.");
+					if (Files.exists(pathConfig)) {
+						logger.warn("To address a library path problem, you could try editing the config file at {}", pathConfig);
+						logger.warn("Update the java.library.path line to include the TensorFlow directory, e.g.");
+						var cachePath = Utils.getEngineCacheDir(name);
+						logger.warn("  java-options=-Djava.library.path=$APPDIR" + File.pathSeparator + "{}/subdirectory-for-tensorflow-version", cachePath.toString());
+					}
+				}
+				Dialogs.showWarningNotification(TITLE, "Unable to initialize " + name + ", sorry");				
 			}
 			return engine;
 		} catch (EngineException e) {
