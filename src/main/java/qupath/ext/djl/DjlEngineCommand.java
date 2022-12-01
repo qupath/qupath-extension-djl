@@ -16,7 +16,6 @@
 
 package qupath.ext.djl;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -55,7 +54,6 @@ import javafx.stage.Stage;
 import qupath.lib.common.GeneralTools;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
-import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.tools.GuiTools;
 import qupath.lib.gui.tools.PaneTools;
 
@@ -147,7 +145,8 @@ public class DjlEngineCommand {
 			var labelPath = new Label(path.toString());
 			var btnDownload = new Button("Download");
 			btnDownload.setPrefWidth(60.0);
-			btnDownload.setOnAction(e -> downloadEngine(name, status));
+			long timeoutMillis = 500L;
+			btnDownload.setOnAction(e -> checkEngineStatus(name, status, timeoutMillis, false));
 			btnDownload.disableProperty().bind(Bindings.createBooleanBinding(() -> 
 				status.get() == EngineStatus.AVAILABLE || status.get() == EngineStatus.PENDING,
 				status));
@@ -229,18 +228,8 @@ public class DjlEngineCommand {
 			
 			PaneTools.setToExpandGridPaneWidth(labelName, labelPath, btnDownload);
 
-			// Finally, try to actually get the engine
-			Engine engine = null;
-			try {
-				engine = DjlTools.getEngine(name, false);
-			} catch (Exception e) {
-				logger.error(e.getLocalizedMessage(), e);
-			}
-			if (engine != null)
-				status.set(EngineStatus.AVAILABLE);
-			else {
-				status.set(EngineStatus.UNAVAILABLE);
-			}
+			// Update the engine status quietly
+			checkEngineStatus(name, status, -1, true);
 		}
 		
 		stage = new Stage();
@@ -257,16 +246,18 @@ public class DjlEngineCommand {
 			stage.show();
 	}
 	
-	private void downloadEngine(String name, ObjectProperty<EngineStatus> status) {
+	private void checkEngineStatus(String name, ObjectProperty<EngineStatus> status, long timeoutMillis, boolean doQuietly) {
 		// Request the engine in a background thread, triggering download if necessary
 		var pool = qupath.createSingleThreadExecutor(this);
 		updateStatus(status, EngineStatus.PENDING);
-		var future = pool.submit((Callable<Engine>)() -> requestEngine(name, status));
+		var future = pool.submit((Callable<Boolean>)() -> checkEngineAvailability(name, status, doQuietly));
+		if (timeoutMillis <= 0)
+			return;
 		
 		try {
-			// Wait up to a second - engine might already be available & return quickly
-			var engine = future.get(500, TimeUnit.MILLISECONDS);
-			if (engine != null) {
+			// Wait until the timeout - engine might already be available & return quickly
+			var result = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+			if (result != null && result.booleanValue()) {
 				Dialogs.showInfoNotification(TITLE, name + " is available!");
 				return;
 			} else
@@ -289,17 +280,18 @@ public class DjlEngineCommand {
 	}
 	
 	
-	private Engine requestEngine(String name, ObjectProperty<EngineStatus> status) {
+	private Boolean checkEngineAvailability(String name, ObjectProperty<EngineStatus> status, boolean doQuietly) {
 
 		if (!GeneralTools.isLinux() && LINUX_ONLY.contains(name)) {
-			Dialogs.showErrorMessage(TITLE, name + " is only available on Linux, sorry");
+			if (!doQuietly)
+				Dialogs.showErrorMessage(TITLE, name + " is only available on Linux, sorry");
 			updateStatus(status, EngineStatus.UNAVAILABLE);
-			return null;
+			return Boolean.FALSE;
 		}
 
 		// For Apple Silicon, we may not know if we are running under Rosetta or not
 		// TODO: Check for custom aarch64 build
-		if (GeneralTools.isMac() && UNSUPPORTED_APPLE_SILICON.contains(name)) {
+		if (!doQuietly && GeneralTools.isMac() && UNSUPPORTED_APPLE_SILICON.contains(name)) {
 			var button = Dialogs.builder()
 				.title(TITLE)
 				.alertType(AlertType.WARNING)
@@ -310,43 +302,46 @@ public class DjlEngineCommand {
 				.orElse(ButtonType.NO);
 			if (ButtonType.NO.equals(button)) {
 				updateStatus(status, EngineStatus.UNAVAILABLE);
-				return null;
+				return Boolean.FALSE;
 			}
 		}
 		
 		try {
-			// Allow engine downloads
+			// Allow engine downloads if not doQuietly
 			updateStatus(status, EngineStatus.PENDING);
-			var engine = DjlTools.getEngine(name, true);
-			if (engine != null) {
+			boolean isAvailable;
+			if (doQuietly)
+				isAvailable = DjlTools.isEngineAvailable(name);
+			else
+				isAvailable = DjlTools.getEngine(name, true) != null;
+			if (isAvailable) {
 				updateStatus(status, EngineStatus.AVAILABLE);
-				Dialogs.showInfoNotification(TITLE, name + " is now available!");
+				if (!doQuietly)
+					Dialogs.showInfoNotification(TITLE, name + " is now available!");
 			} else {
 				updateStatus(status, EngineStatus.UNAVAILABLE);
-				// If we should have TensorFlow - but don't for some reason - then try to help
-				// (If we're running on a Mac, then warnings for the likely explanation have already been shown)
-				if (DjlTools.ENGINE_TENSORFLOW.equals(name) && DjlTools.hasEngine(DjlTools.ENGINE_TENSORFLOW) && !GeneralTools.isMac()) {
-					var pathConfig = PathPrefs.getConfigPath();
-					logger.warn("Unable to find TensorFlow - this might be a problem with the java.library.path or missing Visual Studio Redistributables.");
-					if (Files.exists(pathConfig)) {
-						logger.warn("To address a library path problem, you could try editing the config file at {}", pathConfig);
-						logger.warn("Update the java.library.path line to include the TensorFlow directory, e.g.");
-						var cachePath = Utils.getEngineCacheDir(name);
-						logger.warn("  java-options=-Djava.library.path=$APPDIR" + File.pathSeparator + "{}/subdirectory-for-tensorflow-version", cachePath.toString());
-					}
+				if (!doQuietly) {
+					Dialogs.showWarningNotification(TITLE, "Unable to initialize " + name + ", sorry");
 				}
-				Dialogs.showWarningNotification(TITLE, "Unable to initialize " + name + ", sorry");				
 			}
-			return engine;
+			return isAvailable;
 		} catch (EngineException e) {
-			logger.error("Error requesting engine: " + e.getLocalizedMessage(), e);
-			Dialogs.showErrorMessage(TITLE, "Unable to initialize " + name + "\n- engine might not be supported on this platform, sorry");
+			if (doQuietly) {
+				logger.debug("Error requesting engine: " + e.getLocalizedMessage(), e);				
+			} else {
+				logger.error("Error requesting engine: " + e.getLocalizedMessage(), e);
+				Dialogs.showErrorMessage(TITLE, "Unable to initialize " + name + "\n- engine might not be supported on this platform, sorry");
+			}
 		} catch (Exception e) {
-			logger.error("Error requesting engine: " + e.getLocalizedMessage(), e);
-			Dialogs.showErrorMessage(TITLE, "Exception when trying to download " + name + "\n" + e.getLocalizedMessage());
+			if (doQuietly) {
+				logger.debug("Error requesting engine: " + e.getLocalizedMessage(), e);				
+			} else {
+				logger.error("Error requesting engine: " + e.getLocalizedMessage(), e);
+				Dialogs.showErrorMessage(TITLE, "Exception when trying to download " + name + "\n" + e.getLocalizedMessage());
+			}
 		}
 		updateStatus(status, EngineStatus.FAILED);
-		return null;
+		return Boolean.FALSE;
 	}
 	
 	/**
