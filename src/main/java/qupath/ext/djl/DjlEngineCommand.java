@@ -145,7 +145,8 @@ public class DjlEngineCommand {
 			var labelPath = new Label(path.toString());
 			var btnDownload = new Button("Download");
 			btnDownload.setPrefWidth(60.0);
-			btnDownload.setOnAction(e -> downloadEngine(name, status));
+			long timeoutMillis = 500L;
+			btnDownload.setOnAction(e -> checkEngineStatus(name, status, timeoutMillis, false));
 			btnDownload.disableProperty().bind(Bindings.createBooleanBinding(() -> 
 				status.get() == EngineStatus.AVAILABLE || status.get() == EngineStatus.PENDING,
 				status));
@@ -206,34 +207,29 @@ public class DjlEngineCommand {
 			labelPathLabel.setLabelFor(labelPath);
 			labelPathLabel.setContentDisplay(ContentDisplay.LEFT);
 
-			Engine engine = null;
-			try {
-				engine = DjlTools.getEngine(name, false);
-			} catch (Exception e) {
-				logger.error(e.getLocalizedMessage(), e);
-			}
-			if (engine != null)
-				status.set(EngineStatus.AVAILABLE);
-			else {
-				status.set(EngineStatus.UNAVAILABLE);
-			}
-
-			if (Files.isDirectory(path)) {
-				tooltip = "Double-click to open engine path";
-			} else {
-				labelPath.setStyle("-fx-opacity: 0.5;");
-				tooltip = "Engine path does not exist - engine not downloaded";	
-			}
+			var tip = new Tooltip();
+			status.addListener((v, o, n) -> {
+				if (Files.isDirectory(path)) {
+					tip.setText("Double-click to open engine path");
+				} else {
+					labelPath.setStyle("-fx-opacity: 0.5;");
+					tip.setText("Engine path does not exist");	
+				}				
+			});
+			labelPathLabel.setTooltip(tip);
 			labelPath.setOnMouseClicked(e -> {
 				if (e.getClickCount() == 2 && Files.isDirectory(path))
 					GuiTools.browseDirectory(path.toFile());
 				else
 					logger.debug("Cannot open {} - directory does not exist", path);
 			});
-			PaneTools.addGridRow(pane, row++, 0, tooltip, labelPathLabel, labelPath);
-			PaneTools.addGridRow(pane, row++, 0, tooltip, btnDownload, btnDownload);
+			PaneTools.addGridRow(pane, row++, 0, null, labelPathLabel, labelPath);
+			PaneTools.addGridRow(pane, row++, 0, null, btnDownload, btnDownload);
 			
 			PaneTools.setToExpandGridPaneWidth(labelName, labelPath, btnDownload);
+
+			// Update the engine status quietly
+			checkEngineStatus(name, status, -1, true);
 		}
 		
 		stage = new Stage();
@@ -250,16 +246,18 @@ public class DjlEngineCommand {
 			stage.show();
 	}
 	
-	private void downloadEngine(String name, ObjectProperty<EngineStatus> status) {
+	private void checkEngineStatus(String name, ObjectProperty<EngineStatus> status, long timeoutMillis, boolean doQuietly) {
 		// Request the engine in a background thread, triggering download if necessary
 		var pool = qupath.createSingleThreadExecutor(this);
 		updateStatus(status, EngineStatus.PENDING);
-		var future = pool.submit((Callable<Engine>)() -> requestEngine(name, status));
+		var future = pool.submit((Callable<Boolean>)() -> checkEngineAvailability(name, status, doQuietly));
+		if (timeoutMillis <= 0)
+			return;
 		
 		try {
-			// Wait up to a second - engine might already be available & return quickly
-			var engine = future.get(500, TimeUnit.MILLISECONDS);
-			if (engine != null) {
+			// Wait until the timeout - engine might already be available & return quickly
+			var result = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+			if (result != null && result.booleanValue()) {
 				Dialogs.showInfoNotification(TITLE, name + " is available!");
 				return;
 			} else
@@ -282,17 +280,18 @@ public class DjlEngineCommand {
 	}
 	
 	
-	private Engine requestEngine(String name, ObjectProperty<EngineStatus> status) {
+	private Boolean checkEngineAvailability(String name, ObjectProperty<EngineStatus> status, boolean doQuietly) {
 
 		if (!GeneralTools.isLinux() && LINUX_ONLY.contains(name)) {
-			Dialogs.showErrorMessage(TITLE, name + " is only available on Linux, sorry");
+			if (!doQuietly)
+				Dialogs.showErrorMessage(TITLE, name + " is only available on Linux, sorry");
 			updateStatus(status, EngineStatus.UNAVAILABLE);
-			return null;
+			return Boolean.FALSE;
 		}
 
 		// For Apple Silicon, we may not know if we are running under Rosetta or not
 		// TODO: Check for custom aarch64 build
-		if (GeneralTools.isMac() && UNSUPPORTED_APPLE_SILICON.contains(name)) {
+		if (!doQuietly && GeneralTools.isMac() && UNSUPPORTED_APPLE_SILICON.contains(name)) {
 			var button = Dialogs.builder()
 				.title(TITLE)
 				.alertType(AlertType.WARNING)
@@ -303,28 +302,46 @@ public class DjlEngineCommand {
 				.orElse(ButtonType.NO);
 			if (ButtonType.NO.equals(button)) {
 				updateStatus(status, EngineStatus.UNAVAILABLE);
-				return null;
+				return Boolean.FALSE;
 			}
 		}
 		
 		try {
-			// Allow engine downloads
+			// Allow engine downloads if not doQuietly
 			updateStatus(status, EngineStatus.PENDING);
-			var engine = DjlTools.getEngine(name, true);
-			if (engine != null) {
+			boolean isAvailable;
+			if (doQuietly)
+				isAvailable = DjlTools.isEngineAvailable(name);
+			else
+				isAvailable = DjlTools.getEngine(name, true) != null;
+			if (isAvailable) {
 				updateStatus(status, EngineStatus.AVAILABLE);
-				Dialogs.showInfoNotification(TITLE, name + " is now available!");
+				if (!doQuietly)
+					Dialogs.showInfoNotification(TITLE, name + " is now available!");
+			} else {
+				updateStatus(status, EngineStatus.UNAVAILABLE);
+				if (!doQuietly) {
+					Dialogs.showWarningNotification(TITLE, "Unable to initialize " + name + ", sorry");
+				}
 			}
-			return engine;
+			return isAvailable;
 		} catch (EngineException e) {
-			logger.error("Error requesting engine: " + e.getLocalizedMessage(), e);
-			Dialogs.showErrorMessage(TITLE, "Unable to initialize " + name + "\n- engine might not be supported on this platform, sorry");
+			if (doQuietly) {
+				logger.debug("Error requesting engine: " + e.getLocalizedMessage(), e);				
+			} else {
+				logger.error("Error requesting engine: " + e.getLocalizedMessage(), e);
+				Dialogs.showErrorMessage(TITLE, "Unable to initialize " + name + "\n- engine might not be supported on this platform, sorry");
+			}
 		} catch (Exception e) {
-			logger.error("Error requesting engine: " + e.getLocalizedMessage(), e);
-			Dialogs.showErrorMessage(TITLE, "Exception when trying to download " + name + "\n" + e.getLocalizedMessage());
+			if (doQuietly) {
+				logger.debug("Error requesting engine: " + e.getLocalizedMessage(), e);				
+			} else {
+				logger.error("Error requesting engine: " + e.getLocalizedMessage(), e);
+				Dialogs.showErrorMessage(TITLE, "Exception when trying to download " + name + "\n" + e.getLocalizedMessage());
+			}
 		}
 		updateStatus(status, EngineStatus.FAILED);
-		return null;
+		return Boolean.FALSE;
 	}
 	
 	/**

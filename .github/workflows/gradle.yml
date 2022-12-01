@@ -39,4 +39,4 @@ jobs:
       with:
         name: jar
         path: build/libs
-        retention-days: 1
+        retention-days: 7

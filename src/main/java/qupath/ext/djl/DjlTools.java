@@ -22,10 +22,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.PointerScope;
 import org.bytedeco.javacpp.indexer.BooleanIndexer;
 import org.bytedeco.javacpp.indexer.ByteIndexer;
@@ -123,7 +125,12 @@ public class DjlTools {
 	 */
 	public static String ENGINE_PADDLEPADDLE = "PaddlePaddle";
 	
-	
+	/**
+	 * Maintain a set of all engines that are known to have been loaded.
+	 * This enables us to check for available (and downloaded) engines without 
+	 * having to try to instantiate a new one.
+	 */
+	public static Set<String> loadedEngines = new HashSet<>();
 	
 	static Set<String> ALL_ENGINES = Set.of(
 			ENGINE_DLR, ENGINE_LIGHTGBM, ENGINE_MXNET, ENGINE_ONNX_RUNTIME, ENGINE_PADDLEPADDLE,
@@ -172,17 +179,38 @@ public class DjlTools {
 	}
 	
 	/**
-	 * Check if an Deep Java Library engine is available.
+	 * Check if an Deep Java Library engine is potentially available.
 	 * Note that this does not necessarily mean that it has been downloaded or is supported 
 	 * on this platform, but only that the necessary engine jar is on the classpath.
 	 * @param name
 	 * @return true if the engine jars are on the classpath, false otherwise
 	 * @see #getEngine(String, boolean)
+	 * @see #isEngineAvailable(String)
 	 */
 	public static boolean hasEngine(String name) {
 		return Engine.hasEngine(name);
 	}
 	
+	/**
+	 * Check if an engine is available and ready for use without any additional downloading.
+	 * This first checks whether an engine with the given name has already been seen 
+	 * by this class; if so, the method returns true without attempting to instantiate 
+	 * the engine.
+	 * Otherwise, the method returns true only if {@code hasEngine(name)} is false or if 
+	 * {@code getEngine(name, false)} is not null.
+	 * @param name
+	 * @return
+	 * @see #hasEngine(String)
+	 * @see #getEngine(String, boolean)
+	 */
+	public static boolean isEngineAvailable(String name) {
+		if (loadedEngines.contains(name))
+			return true;
+		if (!hasEngine(name))
+			return false;
+		logger.debug("Need to try to get engine to test availability");
+		return getEngine(name, false) != null;
+	}
 	
 	private static final Object lock = new Object();
 	
@@ -201,11 +229,13 @@ public class DjlTools {
 	 * @return
 	 * @throws IllegalArgumentException if the engine is not available, which means that {@link #hasEngine(String)} returns false
 	 * @see #hasEngine(String)
+	 * @see #isEngineAvailable(String)
 	 */
 	public static Engine getEngine(String name, boolean downloadIfNeeded) throws IllegalArgumentException {
 		if (!hasEngine(name)) {
 			throw new IllegalArgumentException("Requested engine " + name + " is not available!");
 		}
+				
 		synchronized (lock) {
 			var offlineStatus = System.getProperty("offline");
 			try {
@@ -213,7 +243,24 @@ public class DjlTools {
 					System.setProperty("offline", "false");
 				else
 					System.setProperty("offline", "true");
-				return Engine.getEngine(name);
+				
+				// If trying to instantiate a TensorFlow engine for the first time, 
+				// we need to reset the javacpp platform properties for the preload 
+				// path to be correctly identified
+				if (ENGINE_TENSORFLOW.equalsIgnoreCase(name) && !loadedEngines.contains(name)) {
+					try {
+						var f = Loader.class.getDeclaredField("platformProperties");
+				        f.setAccessible(true);
+				        f.set(null, null);
+					} catch (Exception e) {
+						logger.error("Unable to reset JavaCPP platform properties: " + e.getLocalizedMessage(), e);
+					}
+				}
+				
+				var engine = Engine.getEngine(name);
+				if (engine != null)
+					loadedEngines.add(name);
+				return engine;
 			} catch (Exception e) {
 				if (downloadIfNeeded)
 					logger.error("Unable to get engine " + name + ": " + e.getLocalizedMessage(), e);
