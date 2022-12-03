@@ -23,6 +23,7 @@ import java.awt.image.WritableRaster;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import org.locationtech.jts.geom.util.AffineTransformation;
@@ -219,6 +220,21 @@ public class DjlZoo {
 	 * @throws IOException
 	 */
 	public static ZooModel<?, ?> loadModel(Artifact artifact, boolean allowDownload) throws ModelNotFoundException, MalformedModelException, IOException {
+		var criteria = buildCriteria(artifact, allowDownload);
+		return criteria.loadModel();
+	}
+	
+	/**
+	 * Build {@link Criteria} from an existing artifact.
+	 * This can be used to then load a model.
+	 * @param artifact
+	 * @param allowDownload optionally allow the model to be downloaded if it isn't currently available
+	 * @return
+	 * @throws ModelNotFoundException
+	 * @throws MalformedModelException
+	 * @throws IOException
+	 */
+	public static Criteria<?, ?> buildCriteria(Artifact artifact, boolean allowDownload) throws ModelNotFoundException, MalformedModelException, IOException {
 		var before = System.getProperty("offline");
 		try {
 			if (allowDownload)
@@ -233,7 +249,6 @@ public class DjlZoo {
 					.optGroupId(artifact.getMetadata().getGroupId())
 					.optFilters(artifact.getProperties())
 					;
-			
 			
 			if (application == Application.CV.IMAGE_CLASSIFICATION) {
 				builder = builder.setTypes(Image.class, Classifications.class);
@@ -252,8 +267,7 @@ public class DjlZoo {
 			} else
 				builder = builder.setTypes(NDList.class, NDList.class);
 			
-			var model = builder.build().loadModel();
-			return model;
+			return builder.build();
 		} finally {
 			System.setProperty("offline", before);
 		}
@@ -364,21 +378,71 @@ public class DjlZoo {
 		return ROIs.createPointsROI(points, plane);
 	}
 	
+
+	/**
+	 * Build a model and run object detection for an entire image.
+	 * @param criteria the criteria to build a model
+	 * @param imageData the image within which to detect objects
+	 * @return the total number of objects that were detected
+	 * @throws ModelNotFoundException
+	 * @throws MalformedModelException
+	 * @throws IOException
+	 * @throws TranslateException
+	 */	
+	public static int detect(Criteria<Image, DetectedObjects> criteria, ImageData<BufferedImage> imageData) throws ModelNotFoundException, MalformedModelException, IOException, TranslateException {
+		try (var model = criteria.loadModel()) {
+			return detect(model, imageData);
+		}
+	}
+
+	/**
+	 * Build a model and run object detection within specified objects in an image.
+	 * @param criteria the criteria to build a model
+	 * @param imageData the image within which to detect objects
+	 * @param parentObjects the parent objects, which become parents of what is detected; if the root object, the entire image is used for detection.
+	 * @return the total number of objects that were detected
+	 * @throws ModelNotFoundException
+	 * @throws MalformedModelException
+	 * @throws IOException
+	 * @throws TranslateException
+	 */	
+	public static int detect(Criteria<Image, DetectedObjects> criteria, ImageData<BufferedImage> imageData, Collection<? extends PathObject> parentObjects) throws ModelNotFoundException, MalformedModelException, IOException, TranslateException {
+		try (var model = criteria.loadModel()) {
+			return detect(model, imageData, parentObjects);
+		}
+	}
 	
 	/**
-	 * Run object detection for an image.
-	 * @param imageData the image within which to detect objects
+	 * Run object detection for an entire image.
 	 * @param model the model
-	 * @param parentObjects the parent objects, which become parents of what is detected; if the root object, the entire image is used for detection.
+	 * @param imageData the image within which to detect objects
+	 * @return the total number of objects that were detected
 	 * @throws ModelNotFoundException
 	 * @throws MalformedModelException
 	 * @throws IOException
 	 * @throws TranslateException
 	 */
-	public static void detect(ImageData<BufferedImage> imageData, ZooModel<Image, DetectedObjects> model, Collection<? extends PathObject> parentObjects) throws ModelNotFoundException, MalformedModelException, IOException, TranslateException {
+	public static int detect(ZooModel<Image, DetectedObjects> model, ImageData<BufferedImage> imageData) throws ModelNotFoundException, MalformedModelException, IOException, TranslateException {
+		return detect(model, imageData, Collections.singleton(imageData.getHierarchy().getRootObject()));
+	}
+	
+	/**
+	 * Run object detection within specified objects in an image.
+	 * @param model the model
+	 * @param imageData the image within which to detect objects
+	 * @param parentObjects the parent objects, which become parents of what is detected; if the root object, the entire image is used for detection.
+	 * @return the total number of objects that were detected
+	 * @throws ModelNotFoundException
+	 * @throws MalformedModelException
+	 * @throws IOException
+	 * @throws TranslateException
+	 */
+	public static int detect(ZooModel<Image, DetectedObjects> model, ImageData<BufferedImage> imageData, Collection<? extends PathObject> parentObjects) throws ModelNotFoundException, MalformedModelException, IOException, TranslateException {
 		var server = imageData.getServer();
 		
 		double downsample = server.getDownsampleForResolution(0);
+		
+		int nDetected = 0;
 		
 		try (var manager = model.getNDManager()) {
 			var predictor = model.newPredictor();
@@ -394,7 +458,7 @@ public class DjlZoo {
 					request = RegionRequest.createInstance(server.getPath(), downsample, parent.getROI());
 				else
 					request = RegionRequest.createInstance(server, downsample);
-
+				
 				var img = server.readRegion(request);
 				
 				var image = factory.fromImage(img);
@@ -422,12 +486,14 @@ public class DjlZoo {
 					try (var ml = newObject.getMeasurementList()) {
 						ml.put("Class probability", item.getProbability());
 					}
+					nDetected++;
 					parent.addChildObject(newObject);
 				}
 			}
 			
 		}
 		imageData.getHierarchy().fireHierarchyChangedEvent(DjlZoo.class);
+		return nDetected;
 	}
 	
 	/**
