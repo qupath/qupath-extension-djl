@@ -56,7 +56,7 @@ public class DjlExtension implements QuPathExtension, GitHubProject {
 		DnnModels.registerBuilder(builder);
 		MenuTools.addMenuItems(
                 qupath.getMenu("Extensions>Deep Java Library", true),
-                new Action("Manage DJL Engines", e -> DjlEngineCommand.showDialog(qupath))
+                new Action("Manage DJL engines", e -> DjlEngineCommand.showDialog(qupath))
         );
 	}
 
