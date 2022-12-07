@@ -9,7 +9,7 @@ ext.moduleName = 'qupath.extension.djl'
 ext.qupathVersion = gradle.ext.qupathVersion
 
 description = 'QuPath extension to use Deep Java Library'
-version = "0.1.0-SNAPSHOT"
+version = "0.1.0"
 
 def djlVersion = libs.versions.deepJavaLibrary.get()
 
