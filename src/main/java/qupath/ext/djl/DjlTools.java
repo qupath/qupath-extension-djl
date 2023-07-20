@@ -22,11 +22,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import ai.djl.Device;
 import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.PointerScope;
 import org.bytedeco.javacpp.indexer.BooleanIndexer;
@@ -131,6 +133,12 @@ public class DjlTools {
 	 * having to try to instantiate a new one.
 	 */
 	public static Set<String> loadedEngines = new HashSet<>();
+
+	/**
+	 * Default devices for each engine.
+	 * This can be used to override the default used by DJL.
+	 */
+	private static Map<String, Device> defaultDevices = new HashMap<>();
 	
 	static Set<String> ALL_ENGINES = Set.of(
 			ENGINE_DLR, ENGINE_LIGHTGBM, ENGINE_MXNET, ENGINE_ONNX_RUNTIME, ENGINE_PADDLEPADDLE,
@@ -308,27 +316,64 @@ public class DjlTools {
 				.optModelUrls(urls)
 				.optProgress(new ProgressBar());
 		
-		boolean foundEngine = false;
+		String selectedEngine = null;
 		if (engineName != null) {
 			if (Engine.getAllEngines().contains(engineName)) {
-				builder = builder.optEngine(engineName);
-				foundEngine = true;
+				selectedEngine = engineName;
 			}
 		}
 		
 		// Try to figure out the engine name
-		if (!foundEngine) {
+		if (selectedEngine == null) {
 			var urlString = urls.toString().toLowerCase();
 			if (urlString.endsWith(".onnx") && Engine.hasEngine("OnnxRuntime"))
-				builder = builder.optEngine("OnnxRuntime");
+				selectedEngine = "OnnxRuntime";
 			else if ((urlString.endsWith("pytorch") || urlString.endsWith(".pt")) && Engine.hasEngine("PyTorch"))
-				builder = builder.optEngine("PyTorch");
+				selectedEngine = "PyTorch";
 			else if ((urlString.endsWith(".pb") || urlString.endsWith("tf_savedmodel.zip") || urlString.endsWith("tf_savedmodel")) && Engine.hasEngine("TensorFlow"))
-				builder = builder.optEngine("TensorFlow");
+				selectedEngine = "TensorFlow";
+		}
+
+		if (selectedEngine != null) {
+			builder.optEngine(selectedEngine);
+			var device = defaultDevices.getOrDefault(selectedEngine, null);
+			if (device != null) {
+				builder.optDevice(device);
+				builder.optOption("mapLocation", "true");
+			}
 		}
 		
 		var criteria = builder.build();
 		return ModelZoo.loadModel(criteria);		
+	}
+
+
+	/**
+	 * Set the default device for the specified engine.
+	 * This will be used only whenever the model is build using this class, overriding
+	 * DJL's default.
+	 * <p>
+	 * Note that the default device chosen automatically by DJL is usually fine,
+	 * and so it is generally not necessary to set this.
+	 * However it can be useful for exploring, or if DJL does not use the device you want.
+	 * @param engineName
+	 * @param device
+	 */
+	public static void setOverrideDevice(String engineName, Device device) {
+		if (device == null)
+			defaultDevices.remove(engineName);
+		else
+			defaultDevices.put(engineName, device);
+	}
+
+	/**
+	 * Get the default device for the specified engine, which overrides DJL's default device for
+	 * the specified engine.
+	 * @param engineName
+	 * @return the default device, or null if not set
+	 */
+	public static Device getOverrideDevice(String engineName) {
+		return defaultDevices.getOrDefault(engineName, null);
 	}
 
 //	static ZooModel<Mat, Mat> loadModelCV(URI uri, String ndLayout) throws ModelNotFoundException, MalformedModelException, IOException {
