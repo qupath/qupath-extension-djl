@@ -22,11 +22,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import ai.djl.Device;
 import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.PointerScope;
 import org.bytedeco.javacpp.indexer.BooleanIndexer;
@@ -131,6 +133,12 @@ public class DjlTools {
 	 * having to try to instantiate a new one.
 	 */
 	public static Set<String> loadedEngines = new HashSet<>();
+
+	/**
+	 * Default devices for each engine.
+	 * This can be used to override the default used by DJL.
+	 */
+	private static Map<String, Device> defaultDevices = new HashMap<>();
 	
 	static Set<String> ALL_ENGINES = Set.of(
 			ENGINE_DLR, ENGINE_LIGHTGBM, ENGINE_MXNET, ENGINE_ONNX_RUNTIME, ENGINE_PADDLEPADDLE,
@@ -308,27 +316,64 @@ public class DjlTools {
 				.optModelUrls(urls)
 				.optProgress(new ProgressBar());
 		
-		boolean foundEngine = false;
+		String selectedEngine = null;
 		if (engineName != null) {
 			if (Engine.getAllEngines().contains(engineName)) {
-				builder = builder.optEngine(engineName);
-				foundEngine = true;
+				selectedEngine = engineName;
 			}
 		}
 		
 		// Try to figure out the engine name
-		if (!foundEngine) {
+		if (selectedEngine == null) {
 			var urlString = urls.toString().toLowerCase();
 			if (urlString.endsWith(".onnx") && Engine.hasEngine("OnnxRuntime"))
-				builder = builder.optEngine("OnnxRuntime");
+				selectedEngine = "OnnxRuntime";
 			else if ((urlString.endsWith("pytorch") || urlString.endsWith(".pt")) && Engine.hasEngine("PyTorch"))
-				builder = builder.optEngine("PyTorch");
+				selectedEngine = "PyTorch";
 			else if ((urlString.endsWith(".pb") || urlString.endsWith("tf_savedmodel.zip") || urlString.endsWith("tf_savedmodel")) && Engine.hasEngine("TensorFlow"))
-				builder = builder.optEngine("TensorFlow");
+				selectedEngine = "TensorFlow";
+		}
+
+		if (selectedEngine != null) {
+			builder.optEngine(selectedEngine);
+			var device = defaultDevices.getOrDefault(selectedEngine, null);
+			if (device != null) {
+				builder.optDevice(device);
+				builder.optOption("mapLocation", "true");
+			}
 		}
 		
 		var criteria = builder.build();
 		return ModelZoo.loadModel(criteria);		
+	}
+
+
+	/**
+	 * Set the default device for the specified engine.
+	 * This will be used only whenever the model is build using this class, overriding
+	 * DJL's default.
+	 * <p>
+	 * Note that the default device chosen automatically by DJL is usually fine,
+	 * and so it is generally not necessary to set this.
+	 * However it can be useful for exploring, or if DJL does not use the device you want.
+	 * @param engineName
+	 * @param device
+	 */
+	public static void setOverrideDevice(String engineName, Device device) {
+		if (device == null)
+			defaultDevices.remove(engineName);
+		else
+			defaultDevices.put(engineName, device);
+	}
+
+	/**
+	 * Get the default device for the specified engine, which overrides DJL's default device for
+	 * the specified engine.
+	 * @param engineName
+	 * @return the default device, or null if not set
+	 */
+	public static Device getOverrideDevice(String engineName) {
+		return defaultDevices.getOrDefault(engineName, null);
 	}
 
 //	static ZooModel<Mat, Mat> loadModelCV(URI uri, String ndLayout) throws ModelNotFoundException, MalformedModelException, IOException {
@@ -373,9 +418,13 @@ public class DjlTools {
 			var buffer = mat.createBuffer();
 			array = manager.create(buffer, shape, dataType);			
 		} else {
+			var shapeDims = shape.getShape();
+			shapeDims[indC] = 1;
+			var shapeChannel = new Shape(shapeDims, shape.getLayout());
+
 			for (var mat2 : OpenCVTools.splitChannels(mat)) {
-				var buffer = mat2.createBuffer();				
-				var arrayTemp = manager.create(buffer, shape, dataType);
+				var buffer = mat2.createBuffer();
+				var arrayTemp = manager.create(buffer, shapeChannel, dataType);
 				if (array == null)
 					array = arrayTemp;
 				else {
@@ -469,25 +518,111 @@ public class DjlTools {
 			if (indexer instanceof ByteIndexer) {
 				((ByteIndexer) indexer).put(0L, array.toByteArray());
 			} else if (indexer instanceof UByteIndexer) {
-				((UByteIndexer) indexer).put(0L, array.toUint8Array());
+				((UByteIndexer) indexer).put(0L, getInts(array));
 			} else if (indexer instanceof UShortIndexer) {
-				((UShortIndexer) indexer).put(0L, array.toIntArray());
+				((UShortIndexer) indexer).put(0L, getInts(array));
 			} else if (indexer instanceof IntIndexer) {
-				((IntIndexer) indexer).put(0L, array.toIntArray());
+				((IntIndexer) indexer).put(0L, getInts(array));
 			} else if (indexer instanceof FloatIndexer) {
-				((FloatIndexer) indexer).put(0L, array.toFloatArray());
+				((FloatIndexer) indexer).put(0L, getFloats(array));
 			} else if (indexer instanceof HalfIndexer) {
-				((HalfIndexer) indexer).put(0L, array.toFloatArray());
+				((HalfIndexer) indexer).put(0L,getFloats(array));
 			} else if (indexer instanceof DoubleIndexer) {
-				((DoubleIndexer) indexer).put(0L, array.toDoubleArray());
+				((DoubleIndexer) indexer).put(0L, getDoubles(array));
 			} else if (indexer instanceof LongIndexer) {
-				((LongIndexer) indexer).put(0L, array.toLongArray());
+				((LongIndexer) indexer).put(0L, getLongs(array));
 			} else if (indexer instanceof BooleanIndexer) {
-				((BooleanIndexer) indexer).put(0L, array.toBooleanArray());
+				((BooleanIndexer) indexer).put(0L, getBooleans(array));
 			} else
 				throw new IllegalArgumentException("Unable to convert array " + array + " to Mat");
 		}
 		return mat;
+	}
+
+	/**
+	 * Extract array values as longs, converting if necessary.
+	 * @param array
+	 * @return
+	 */
+	public static long[] getLongs(NDArray array) {
+		if (array.getDataType() == DataType.INT64) {
+			try {
+				return array.toLongArray();
+			} catch (Exception e) {
+				logger.error("Exception requesting longs from NDArray");
+			}
+		}
+		return array.toType(DataType.INT64, true).toLongArray();
+	}
+
+	/**
+	 * Extract array values as booleans, converting if necessary.
+	 * @param array
+	 * @return
+	 */
+	private static boolean[] getBooleans(NDArray array) {
+		if (array.getDataType() == DataType.BOOLEAN) {
+			try {
+				return array.toBooleanArray();
+			} catch (Exception e) {
+				logger.error("Exception requesting ints from NDArray");
+			}
+		}
+		return array.toType(DataType.BOOLEAN, true).toBooleanArray();
+	}
+
+	/**
+	 * Extract array values as ints, converting if necessary.
+	 * @param array
+	 * @return
+	 */
+	private static int[] getInts(NDArray array) {
+		if (array.getDataType() == DataType.INT32) {
+			try {
+				return array.toIntArray();
+			} catch (Exception e) {
+				logger.error("Exception requesting ints from NDArray");
+			}
+		} else if (array.getDataType() == DataType.UINT8) {
+			try {
+				return array.toUint8Array();
+			} catch (Exception e) {
+				logger.error("Exception requesting ints from NDArray");
+			}
+		}
+		return array.toType(DataType.INT32, true).toIntArray();
+	}
+
+	/**
+	 * Extract array values as doubles, converting if necessary.
+	 * @param array
+	 * @return
+	 */
+	private static double[] getDoubles(NDArray array) {
+		if (array.getDataType() == DataType.FLOAT64) {
+			try {
+				return array.toDoubleArray();
+			} catch (Exception e) {
+				logger.error("Exception requesting doubles from NDArray");
+			}
+		}
+		return array.toType(DataType.FLOAT64, true).toDoubleArray();
+	}
+
+	/**
+	 * Extract array values as floats, converting if necessary.
+	 * @param array
+	 * @return
+	 */
+	private static float[] getFloats(NDArray array) {
+		if (array.getDataType() == DataType.FLOAT32 || array.getDataType() == DataType.FLOAT16) {
+			try {
+				return array.toFloatArray();
+			} catch (Exception e) {
+				logger.error("Exception requesting floats from NDArray", e);
+			}
+		}
+		return array.toType(DataType.FLOAT32, true).toFloatArray();
 	}
 	
 	
