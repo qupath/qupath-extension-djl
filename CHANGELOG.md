@@ -1,4 +1,4 @@
-## Version 0.2.0-SNAPSHOT
+## Version 0.2.0
 
 * Improve conversion of `NDArray` to more data types
   * Add `DjlTools.getXXX()` methods to get ints, floats, doubles, longs and booleans
