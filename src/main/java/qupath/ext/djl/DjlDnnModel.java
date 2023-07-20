@@ -207,7 +207,7 @@ class DjlDnnModel implements DnnModel<NDList>, AutoCloseable, UriResource {
 		@Override
 		public List<Mat> fromBlob(NDList blob) {
 			String layout;
-			if (ndLayout == null && !blob.isEmpty())
+			if ((ndLayout == null || ndLayout.length() != blob.singletonOrThrow().getShape().dimension()) && !blob.isEmpty())
 				layout = estimateOutputLayout(blob.get(0));
 			else
 				layout = ndLayout;

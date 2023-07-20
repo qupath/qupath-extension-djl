@@ -373,9 +373,13 @@ public class DjlTools {
 			var buffer = mat.createBuffer();
 			array = manager.create(buffer, shape, dataType);			
 		} else {
+			var shapeDims = shape.getShape();
+			shapeDims[indC] = 1;
+			var shapeChannel = new Shape(shapeDims, shape.getLayout());
+
 			for (var mat2 : OpenCVTools.splitChannels(mat)) {
-				var buffer = mat2.createBuffer();				
-				var arrayTemp = manager.create(buffer, shape, dataType);
+				var buffer = mat2.createBuffer();
+				var arrayTemp = manager.create(buffer, shapeChannel, dataType);
 				if (array == null)
 					array = arrayTemp;
 				else {
@@ -469,25 +473,111 @@ public class DjlTools {
 			if (indexer instanceof ByteIndexer) {
 				((ByteIndexer) indexer).put(0L, array.toByteArray());
 			} else if (indexer instanceof UByteIndexer) {
-				((UByteIndexer) indexer).put(0L, array.toUint8Array());
+				((UByteIndexer) indexer).put(0L, getInts(array));
 			} else if (indexer instanceof UShortIndexer) {
-				((UShortIndexer) indexer).put(0L, array.toIntArray());
+				((UShortIndexer) indexer).put(0L, getInts(array));
 			} else if (indexer instanceof IntIndexer) {
-				((IntIndexer) indexer).put(0L, array.toIntArray());
+				((IntIndexer) indexer).put(0L, getInts(array));
 			} else if (indexer instanceof FloatIndexer) {
-				((FloatIndexer) indexer).put(0L, array.toFloatArray());
+				((FloatIndexer) indexer).put(0L, getFloats(array));
 			} else if (indexer instanceof HalfIndexer) {
-				((HalfIndexer) indexer).put(0L, array.toFloatArray());
+				((HalfIndexer) indexer).put(0L,getFloats(array));
 			} else if (indexer instanceof DoubleIndexer) {
-				((DoubleIndexer) indexer).put(0L, array.toDoubleArray());
+				((DoubleIndexer) indexer).put(0L, getDoubles(array));
 			} else if (indexer instanceof LongIndexer) {
-				((LongIndexer) indexer).put(0L, array.toLongArray());
+				((LongIndexer) indexer).put(0L, getLongs(array));
 			} else if (indexer instanceof BooleanIndexer) {
-				((BooleanIndexer) indexer).put(0L, array.toBooleanArray());
+				((BooleanIndexer) indexer).put(0L, getBooleans(array));
 			} else
 				throw new IllegalArgumentException("Unable to convert array " + array + " to Mat");
 		}
 		return mat;
+	}
+
+	/**
+	 * Extract array values as longs, converting if necessary.
+	 * @param array
+	 * @return
+	 */
+	public static long[] getLongs(NDArray array) {
+		if (array.getDataType() == DataType.INT64) {
+			try {
+				return array.toLongArray();
+			} catch (Exception e) {
+				logger.error("Exception requesting longs from NDArray");
+			}
+		}
+		return array.toType(DataType.INT64, true).toLongArray();
+	}
+
+	/**
+	 * Extract array values as booleans, converting if necessary.
+	 * @param array
+	 * @return
+	 */
+	private static boolean[] getBooleans(NDArray array) {
+		if (array.getDataType() == DataType.BOOLEAN) {
+			try {
+				return array.toBooleanArray();
+			} catch (Exception e) {
+				logger.error("Exception requesting ints from NDArray");
+			}
+		}
+		return array.toType(DataType.BOOLEAN, true).toBooleanArray();
+	}
+
+	/**
+	 * Extract array values as ints, converting if necessary.
+	 * @param array
+	 * @return
+	 */
+	private static int[] getInts(NDArray array) {
+		if (array.getDataType() == DataType.INT32) {
+			try {
+				return array.toIntArray();
+			} catch (Exception e) {
+				logger.error("Exception requesting ints from NDArray");
+			}
+		} else if (array.getDataType() == DataType.UINT8) {
+			try {
+				return array.toUint8Array();
+			} catch (Exception e) {
+				logger.error("Exception requesting ints from NDArray");
+			}
+		}
+		return array.toType(DataType.INT32, true).toIntArray();
+	}
+
+	/**
+	 * Extract array values as doubles, converting if necessary.
+	 * @param array
+	 * @return
+	 */
+	private static double[] getDoubles(NDArray array) {
+		if (array.getDataType() == DataType.FLOAT64) {
+			try {
+				return array.toDoubleArray();
+			} catch (Exception e) {
+				logger.error("Exception requesting doubles from NDArray");
+			}
+		}
+		return array.toType(DataType.FLOAT64, true).toDoubleArray();
+	}
+
+	/**
+	 * Extract array values as floats, converting if necessary.
+	 * @param array
+	 * @return
+	 */
+	private static float[] getFloats(NDArray array) {
+		if (array.getDataType() == DataType.FLOAT32 || array.getDataType() == DataType.FLOAT16) {
+			try {
+				return array.toFloatArray();
+			} catch (Exception e) {
+				logger.error("Exception requesting floats from NDArray", e);
+			}
+		}
+		return array.toType(DataType.FLOAT32, true).toFloatArray();
 	}
 	
 	
