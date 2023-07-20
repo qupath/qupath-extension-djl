@@ -4,14 +4,14 @@ plugins {
   // To manage included native libraries
   alias(libs.plugins.javacpp)
   // Need to use this instead (without version) if running as a QuPath subproject
-  // id 'org.bytedeco.gradle-javacpp-platform'
+//  id 'org.bytedeco.gradle-javacpp-platform'
 }
 
 ext.moduleName = 'qupath.extension.djl'
 ext.qupathVersion = gradle.ext.qupathVersion
 
 description = 'QuPath extension to use Deep Java Library'
-version = "0.2.0-SNAPSHOT"
+version = "0.2.0"
 
 def djlVersion = libs.versions.deepJavaLibrary.get()
 
