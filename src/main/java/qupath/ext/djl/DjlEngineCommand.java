@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -51,11 +52,12 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import qupath.fx.dialogs.Dialogs;
+import qupath.fx.utils.GridPaneUtils;
 import qupath.lib.common.GeneralTools;
+import qupath.lib.common.ThreadTools;
 import qupath.lib.gui.QuPathGUI;
-import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.gui.tools.GuiTools;
-import qupath.lib.gui.tools.PaneTools;
 
 /**
  * Command to display Deep Java Library engines.
@@ -115,23 +117,23 @@ public class DjlEngineCommand {
 				"Download Deep Java Library engines for inference."
 				);
 		label.setWrapText(true);
-		PaneTools.addGridRow(pane, row++, 0, null, label, label);
+		GridPaneUtils.addGridRow(pane, row++, 0, null, label, label);
 		var label2 = new Label(
 				"These will be stored in the local directories shown."
 				);
 		label2.setWrapText(true);
-		PaneTools.addGridRow(pane, row++, 0, null, label2, label2);
+		GridPaneUtils.addGridRow(pane, row++, 0, null, label2, label2);
 
 		var label3 = new Label(
 				"Please check the original engine's website for any licensing information.\n"
 				);
 		label3.setWrapText(true);
-		PaneTools.addGridRow(pane, row++, 0, null, label3, label3);
+		GridPaneUtils.addGridRow(pane, row++, 0, null, label3, label3);
 
 		for (var name : Engine.getAllEngines()) {
 			var separator = new Separator(Orientation.HORIZONTAL);
-			PaneTools.addGridRow(pane, row++, 0, null, separator, separator);
-			PaneTools.setToExpandGridPaneWidth(separator);
+			GridPaneUtils.addGridRow(pane, row++, 0, null, separator, separator);
+			GridPaneUtils.setToExpandGridPaneWidth(separator);
 			
 			var status = available.computeIfAbsent(name, n -> new SimpleObjectProperty<>(EngineStatus.UNKNOWN));
 			
@@ -140,7 +142,7 @@ public class DjlEngineCommand {
 			String tooltip = "Engine: " + name;
 			var labelName = new Label(name);
 			labelName.setStyle("-fx-font-weight: bold;");
-			PaneTools.addGridRow(pane, row++, 0, tooltip, labelName, labelName);
+			GridPaneUtils.addGridRow(pane, row++, 0, tooltip, labelName, labelName);
 			
 			var labelPath = new Label(path.toString());
 			var btnDownload = new Button("Download");
@@ -223,10 +225,10 @@ public class DjlEngineCommand {
 				else
 					logger.debug("Cannot open {} - directory does not exist", path);
 			});
-			PaneTools.addGridRow(pane, row++, 0, null, labelPathLabel, labelPath);
-			PaneTools.addGridRow(pane, row++, 0, null, btnDownload, btnDownload);
+			GridPaneUtils.addGridRow(pane, row++, 0, null, labelPathLabel, labelPath);
+			GridPaneUtils.addGridRow(pane, row++, 0, null, btnDownload, btnDownload);
 			
-			PaneTools.setToExpandGridPaneWidth(labelName, labelPath, btnDownload);
+			GridPaneUtils.setToExpandGridPaneWidth(labelName, labelPath, btnDownload);
 
 			// Update the engine status quietly
 			checkEngineStatus(name, status, -1, true);
@@ -248,12 +250,12 @@ public class DjlEngineCommand {
 	
 	private void checkEngineStatus(String name, ObjectProperty<EngineStatus> status, long timeoutMillis, boolean doQuietly) {
 		// Request the engine in a background thread, triggering download if necessary
-		var pool = qupath.createSingleThreadExecutor(this);
+		var pool = Executors.newSingleThreadExecutor(ThreadTools.createThreadFactory("djl-engine-request", true));
 		updateStatus(status, EngineStatus.PENDING);
 		var future = pool.submit((Callable<Boolean>)() -> checkEngineAvailability(name, status, doQuietly));
 		if (timeoutMillis <= 0)
 			return;
-		
+		pool.shutdown();
 		try {
 			// Wait until the timeout - engine might already be available & return quickly
 			var result = future.get(timeoutMillis, TimeUnit.MILLISECONDS);

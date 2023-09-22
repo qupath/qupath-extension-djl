@@ -2,16 +2,16 @@ plugins {
   id 'java-library'
   id 'maven-publish'
   // To manage included native libraries
-  alias(libs.plugins.javacpp)
+//  alias(libs.plugins.javacpp)
   // Need to use this instead (without version) if running as a QuPath subproject
-//  id 'org.bytedeco.gradle-javacpp-platform'
+  id 'org.bytedeco.gradle-javacpp-platform'
 }
 
 ext.moduleName = 'qupath.extension.djl'
 ext.qupathVersion = gradle.ext.qupathVersion
 
 description = 'QuPath extension to use Deep Java Library'
-version = "0.2.0"
+version = "0.3.0-SNAPSHOT"
 
 def djlVersion = libs.versions.deepJavaLibrary.get()
 
@@ -34,7 +34,8 @@ repositories {
 
 dependencies {
     implementation "io.github.qupath:qupath-gui-fx:${qupathVersion}"
-        
+	implementation "io.github.qupath:qupath-fxtras:0.1.0-SNAPSHOT"
+
     // These are included in QuPath distributions
     implementation libs.bundles.logging
     implementation libs.snakeyaml
@@ -65,7 +66,7 @@ tasks.register("copyDependencies", Copy) {
  */
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(11)
+        languageVersion = JavaLanguageVersion.of(17)
     }
     if (project.properties['sources'])
 	    withSourcesJar()
