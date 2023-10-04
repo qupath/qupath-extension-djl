@@ -1,4 +1,4 @@
-[![Extension docs](https://img.shields.io/badge/docs-qupath_djl-red)](https://qupath.readthedocs.io/en/0.4/docs/deep/djl.html)
+[![Extension docs](https://img.shields.io/badge/docs-qupath_djl-red)](https://qupath.readthedocs.io/en/stable/docs/deep/djl.html)
 [![Forum](https://img.shields.io/badge/forum-image.sc-green)](https://forum.image.sc/tag/qupath)
 [![Downloads (latest release)](https://img.shields.io/github/downloads-pre/qupath/qupath-extension-djl/latest/total)](https://github.com/qupath/qupath-extension-djl/releases/latest)
 [![Downloads (all releases)](https://img.shields.io/github/downloads/qupath/qupath-extension-djl/total)](https://github.com/qupath/qupath-extension-djl/releases)
