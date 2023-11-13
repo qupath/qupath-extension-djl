@@ -64,6 +64,11 @@ public class DjlDnnModelBuilder implements DnnModelBuilder<NDList> {
 			if (Engine.hasEngine(DjlTools.ENGINE_PYTORCH))
 				return DjlTools.ENGINE_PYTORCH;
 		}
+
+		if (urlString.endsWith(".tflite")) {
+			if (Engine.hasEngine(DjlTools.ENGINE_TFLITE))
+				return DjlTools.ENGINE_TFLITE;
+		}
 		
 		var path = GeneralTools.toPath(uri);
 		if (path != null) {
