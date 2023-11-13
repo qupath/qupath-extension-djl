@@ -1,9 +1,9 @@
 plugins {
   id 'java-library'
   id 'maven-publish'
-  // To manage included native libraries
-//  alias(libs.plugins.javacpp)
-  // Need to use this instead (without version) if running as a QuPath subproject
+  id 'com.github.johnrengelman.shadow' version '8.1.1'
+  id 'org.openjfx.javafxplugin' version '0.1.0'
+  // Version in settings.gradle
   id 'org.bytedeco.gradle-javacpp-platform'
 }
 
@@ -12,6 +12,7 @@ ext.qupathVersion = gradle.ext.qupathVersion
 
 description = 'QuPath extension to use Deep Java Library'
 version = "0.3.0-SNAPSHOT"
+group = 'io.github.qupath'
 
 def djlVersion = libs.versions.deepJavaLibrary.get()
 
@@ -33,12 +34,12 @@ repositories {
 
 
 dependencies {
-    implementation "io.github.qupath:qupath-gui-fx:${qupathVersion}"
-	implementation "io.github.qupath:qupath-fxtras:0.1.0-SNAPSHOT"
+	shadow "io.github.qupath:qupath-gui-fx:${qupathVersion}"
+	shadow libs.qupath.fxtras
 
     // These are included in QuPath distributions
-    implementation libs.bundles.logging
-    implementation libs.snakeyaml
+	shadow libs.bundles.logging
+	shadow libs.snakeyaml
     
     implementation "ai.djl:api:$djlVersion"
     
@@ -135,7 +136,6 @@ publishing {
 
 	publications {
 		mavenJava(MavenPublication) {
-			groupId = 'io.github.qupath'
 			from components.java
 
 			pom {

@@ -101,10 +101,14 @@ class DjlDnnModel implements DnnModel<NDList>, AutoCloseable, UriResource {
 						}
 
 						if (this.outputs == null || this.outputs.isEmpty()) {
-							var description = model.describeOutput();
-							if (description != null && !description.isEmpty())
-								outputs = description.stream().collect(Collectors.toMap(p -> p.getKey(), p -> DjlTools.convertShape(p.getValue())));
-							else
+							try {
+								var description = model.describeOutput();
+								if (description != null && !description.isEmpty())
+									outputs = description.stream().collect(Collectors.toMap(p -> p.getKey(), p -> DjlTools.convertShape(p.getValue())));
+							} catch (Exception e) {
+								logger.debug(e.getMessage(), e);
+							}
+							if (this.outputs == null || this.outputs.isEmpty())
 								outputs = Map.of(DnnModel.DEFAULT_OUTPUT_NAME, DnnShape.UNKNOWN_SHAPE);
 						}
 
