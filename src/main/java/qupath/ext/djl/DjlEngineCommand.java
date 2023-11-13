@@ -72,7 +72,7 @@ public class DjlEngineCommand {
 	
 	private QuPathGUI qupath;
 	
-	private static enum EngineStatus {
+	private enum EngineStatus {
 		UNAVAILABLE, UNKNOWN, PENDING, AVAILABLE, FAILED
 	}
 	
