@@ -37,7 +37,7 @@ public class DjlExtension implements QuPathExtension, GitHubProject {
 	
 	private final static Logger logger = LoggerFactory.getLogger(DjlExtension.class);
 	
-	private final static DnnModelBuilder<?> builder = new DjlDnnModelBuilder();
+	private final static DnnModelBuilder builder = new DjlDnnModelBuilder();
 	
 	static {
 		// Prevent downloading engines automatically

@@ -153,7 +153,7 @@ public class DjlTools {
 	 * @param inputShape expected input shape, according to ndLayout
 	 * @return
 	 */
-	public static DnnModel<NDList> createDnnModel(URI uri, String ndLayout, int[] inputShape) {
+	public static DnnModel createDnnModel(URI uri, String ndLayout, int[] inputShape) {
 		DnnShape shape = null;
 		if (inputShape != null)
 			shape = DnnShape.of(Arrays.stream(inputShape).mapToLong(i -> i).toArray());
@@ -169,7 +169,7 @@ public class DjlTools {
 	 * @param outputs outputs shapes, if known; if these are null, an attempt will be made to get them from DJL (but this does not always work)
 	 * @return
 	 */
-	public static DnnModel<NDList> createDnnModel(String engine, URI uri, String ndLayout, Map<String, DnnShape> inputs, Map<String, DnnShape> outputs) {
+	public static DnnModel createDnnModel(String engine, URI uri, String ndLayout, Map<String, DnnShape> inputs, Map<String, DnnShape> outputs) {
 		return createDnnModel(engine, Collections.singletonList(uri), ndLayout, inputs, outputs);
 	}
 	
@@ -182,7 +182,7 @@ public class DjlTools {
 	 * @param outputs outputs shapes, if known; if these are null, an attempt will be made to get them from DJL (but this does not always work)
 	 * @return
 	 */
-	private static DnnModel<NDList> createDnnModel(String engine, Collection<URI> uris, String ndLayout, Map<String, DnnShape> inputs, Map<String, DnnShape> outputs) {
+	private static DnnModel createDnnModel(String engine, Collection<URI> uris, String ndLayout, Map<String, DnnShape> inputs, Map<String, DnnShape> outputs) {
 		return new DjlDnnModel(engine, uris, ndLayout, inputs, outputs, false); // Eagerly initialize (so we know if it doesn't work sooner)
 	}
 	
@@ -291,8 +291,12 @@ public class DjlTools {
 	static DnnShape convertShape(Shape shape) {
 		return DnnShape.of(shape.getShape());
 	}
-	
+
 	static ZooModel<NDList, NDList> loadModel(String engineName, URI... uris) throws ModelNotFoundException, MalformedModelException, IOException {
+		return loadModel(engineName, NDList.class, NDList.class, null, uris);
+	}
+
+	static <P, Q> ZooModel<P, Q> loadModel(String engineName, Class<P> inputClass, Class<Q> outputClass, Translator<P, Q> translator, URI... uris) throws ModelNotFoundException, MalformedModelException, IOException {
 		var sb = new StringBuilder();
 		boolean isFirst = true;
 		for (var uri : uris) {
@@ -307,13 +311,14 @@ public class DjlTools {
 			}
 			sb.append(uri.toString());
 		}
-		return loadModel(engineName, sb.toString());
+		return loadModel(engineName, inputClass, outputClass, translator, sb.toString());
 	}
 
-	private static ZooModel<NDList, NDList> loadModel(String engineName, String urls) throws ModelNotFoundException, MalformedModelException, IOException {
+	private static <P, Q> ZooModel<P, Q> loadModel(String engineName, Class<P> inputClass, Class<Q> outputClass, Translator<P, Q> translator, String urls) throws ModelNotFoundException, MalformedModelException, IOException {
 		var builder = Criteria.builder()
-				.setTypes(NDList.class, NDList.class)
+				.setTypes(inputClass, outputClass)
 				.optModelUrls(urls)
+				.optTranslator(translator)
 				.optProgress(new ProgressBar());
 		
 		String selectedEngine = null;
@@ -330,6 +335,8 @@ public class DjlTools {
 				selectedEngine = "OnnxRuntime";
 			else if ((urlString.endsWith("pytorch") || urlString.endsWith(".pt")) && Engine.hasEngine("PyTorch"))
 				selectedEngine = "PyTorch";
+			else if (urlString.endsWith(".tflite") && Engine.hasEngine("TFLite"))
+				selectedEngine = "TFLite";
 			else if ((urlString.endsWith(".pb") || urlString.endsWith("tf_savedmodel.zip") || urlString.endsWith("tf_savedmodel")) && Engine.hasEngine("TensorFlow"))
 				selectedEngine = "TensorFlow";
 		}
