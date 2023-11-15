@@ -16,35 +16,31 @@
 
 package qupath.ext.djl;
 
-import java.io.IOException;
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
-import org.bytedeco.opencv.opencv_core.Mat;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import ai.djl.inference.Predictor;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.LayoutType;
 import ai.djl.repository.zoo.ZooModel;
-import ai.djl.translate.Batchifier;
-import ai.djl.translate.NoopTranslator;
+import ai.djl.translate.NoBatchifyTranslator;
 import ai.djl.translate.TranslateException;
+import ai.djl.translate.TranslatorContext;
+import org.bytedeco.opencv.opencv_core.Mat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import qupath.lib.io.UriResource;
-import qupath.opencv.dnn.BlobFunction;
 import qupath.opencv.dnn.DnnModel;
 import qupath.opencv.dnn.DnnShape;
-import qupath.opencv.dnn.PredictionFunction;
 
-class DjlDnnModel implements DnnModel<NDList>, AutoCloseable, UriResource {
+import java.io.IOException;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+class DjlDnnModel implements DnnModel, AutoCloseable, UriResource {
 
 	private static final Logger logger = LoggerFactory.getLogger(DjlDnnModel.class);
 
@@ -58,10 +54,13 @@ class DjlDnnModel implements DnnModel<NDList>, AutoCloseable, UriResource {
 	private boolean lazyInitialize;
 
 	private transient boolean failed;
-	private transient ZooModel<NDList, NDList> model;
-	private transient Predictor<NDList, NDList> predictor;
-	private transient BlobFunction<NDList> blobFun;
-	private transient PredictionFunction<NDList> predictFun;
+	private transient ZooModel<Mat[], Mat[]> model;
+	private transient Predictor<Mat[], Mat[]> predictor;
+
+	/**
+	 * Default layout for an OpenCV Mat
+	 */
+	private static final String DEFAULT_MAT_LAYOUT = getLayout(LayoutType.HEIGHT, LayoutType.WIDTH, LayoutType.CHANNEL);
 
 	DjlDnnModel(String engine, Collection<URI> uris, String ndLayout, Map<String, DnnShape> inputs, Map<String, DnnShape> outputs, boolean lazyInitialize) {
 		this.engine = engine;
@@ -85,11 +84,13 @@ class DjlDnnModel implements DnnModel<NDList>, AutoCloseable, UriResource {
 				if (!failed && model == null) {
 					try {
 						logger.debug("Initializing DjlDnnModel");
-						model = DjlTools.loadModel(engine, uris.toArray(URI[]::new));
-						if (ndLayout != null && ndLayout.contains("N"))
-							predictor = model.newPredictor();
-						else
-							predictor = model.newPredictor(new NoopTranslator(Batchifier.STACK));
+						model = DjlTools.loadModel(engine,
+								Mat[].class, Mat[].class,
+								new ModelMatTranslator(),
+								uris.toArray(URI[]::new));
+//						if (ndLayout != null && ndLayout.contains("N"))
+						predictor = model.newPredictor();
+
 
 						// TODO: Better handling of missing inputs/outputs - we may need to run a prediction for this to work
 						if (this.inputs == null || this.inputs.isEmpty()) {
@@ -111,9 +112,6 @@ class DjlDnnModel implements DnnModel<NDList>, AutoCloseable, UriResource {
 							if (this.outputs == null || this.outputs.isEmpty())
 								outputs = Map.of(DnnModel.DEFAULT_OUTPUT_NAME, DnnShape.UNKNOWN_SHAPE);
 						}
-
-						blobFun = new BlobFun();
-						predictFun = new PredictFun();
 					} catch (Exception e) {
 						failed = true;
 						logger.debug("Failed to create DjlDnnModel");
@@ -125,21 +123,25 @@ class DjlDnnModel implements DnnModel<NDList>, AutoCloseable, UriResource {
 	}
 
 	@Override
-	public BlobFunction<NDList> getBlobFunction() {
-		ensureInitialized();
-		return blobFun;
+	public Map<String, Mat> predict(Map<String, Mat> blobs) {
+		synchronized (predictor) {
+			try {
+				var result = predictor.predict(blobs.values().stream().toArray(Mat[]::new));
+				return Map.of(DnnModel.DEFAULT_OUTPUT_NAME, result[0]);
+			} catch (TranslateException e) {
+				throw new RuntimeException(e);
+			}
+		}
 	}
 
 	@Override
-	public BlobFunction<NDList> getBlobFunction(String name) {
-		ensureInitialized();
-		return blobFun;
+	public Mat predict(Mat mat) {
+		return DnnModel.super.predict(mat);
 	}
 
 	@Override
-	public PredictionFunction<NDList> getPredictionFunction() {
-		ensureInitialized();
-		return predictFun;
+	public List<Mat> batchPredict(List<? extends Mat> mats) {
+		return DnnModel.super.batchPredict(mats);
 	}
 
 	@Override
@@ -147,14 +149,10 @@ class DjlDnnModel implements DnnModel<NDList>, AutoCloseable, UriResource {
 		if (model != null) {
 			model.close();
 			model = null;
-			blobFun = null;
-			predictFun = null;
 			logger.debug("Closed DjlDnnModel");
 		}
 	}
 
-	private static final String DEFAULT_MAT_LAYOUT = getLayout(LayoutType.HEIGHT, LayoutType.WIDTH, LayoutType.CHANNEL);
-	
 	private static String getLayout(LayoutType... layouts) {
 		return LayoutType.toString(layouts);
 	}
@@ -192,63 +190,32 @@ class DjlDnnModel implements DnnModel<NDList>, AutoCloseable, UriResource {
 	
 	
 
-	private class BlobFun implements BlobFunction<NDList> {
+	private class ModelMatTranslator implements NoBatchifyTranslator<Mat[], Mat[]> {
 
 		@Override
-		public NDList toBlob(Mat... mats) {
+		public Mat[] processOutput(TranslatorContext ctx, NDList list) throws Exception {
+			String layout;
+			if ((ndLayout == null || ndLayout.length() != list.singletonOrThrow().getShape().dimension()) && !list.isEmpty())
+				layout = estimateOutputLayout(list.get(0));
+			else
+				layout = ndLayout;
+			var output = list.stream().map(b -> DjlTools.ndArrayToMat(b, layout)).toArray(Mat[]::new);
+			return output;
+		}
+
+		@Override
+		public NDList processInput(TranslatorContext ctx, Mat... input) throws Exception {
 			NDList list = new NDList();
 			String layout = ndLayout;
-			for (var mat : mats) {
+			for (var mat : input) {
 				// Try to figure out the layout
 				if (layout == null) {
 					layout = estimateInputLayout(mat);
 				}
-				list.add(DjlTools.matToNDArray(model.getNDManager(), mat, layout));
+				list.add(DjlTools.matToNDArray(ctx.getNDManager(), mat, layout));
 			}
 			return list;
 		}
-
-		@Override
-		public List<Mat> fromBlob(NDList blob) {
-			String layout;
-			if ((ndLayout == null || ndLayout.length() != blob.singletonOrThrow().getShape().dimension()) && !blob.isEmpty())
-				layout = estimateOutputLayout(blob.get(0));
-			else
-				layout = ndLayout;
-			var output = blob.stream().map(b -> DjlTools.ndArrayToMat(b, layout)).collect(Collectors.toList());
-			blob.close();
-			return output;
-		}
-
-	}
-
-	private class PredictFun implements PredictionFunction<NDList> {
-
-		@Override
-		public NDList predict(NDList input) {
-			try {
-				NDList output;
-				// TODO: Check whether to support per-thread predictors
-				synchronized (predictor) {
-					output = predictor.batchPredict(Collections.singletonList(input)).get(0);
-				}
-				input.close();
-				return output;
-			} catch (TranslateException e) {
-				throw new RuntimeException(e);
-			}
-		}
-
-		@Override
-		public Map<String, DnnShape> getInputs() {
-			return inputs;
-		}
-
-		@Override
-		public Map<String, DnnShape> getOutputs(DnnShape... inputShapes) {
-			return outputs;
-		}
-
 	}
 
 	@Override

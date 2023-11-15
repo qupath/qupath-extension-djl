@@ -32,7 +32,7 @@ import qupath.opencv.dnn.DnnModelParams;
  * 
  * @author Pete Bankhead
  */
-public class DjlDnnModelBuilder implements DnnModelBuilder<NDList> {
+public class DjlDnnModelBuilder implements DnnModelBuilder {
 
 	private static String getEngineName(String framework) {
 		if (DjlTools.ALL_ENGINES.contains(framework))
@@ -41,6 +41,8 @@ public class DjlDnnModelBuilder implements DnnModelBuilder<NDList> {
 		switch(framework) {
 		case DnnModelParams.FRAMEWORK_TENSORFLOW:
 			return DjlTools.ENGINE_TENSORFLOW;
+		case DnnModelParams.FRAMEWORK_TF_LITE:
+			return DjlTools.ENGINE_TFLITE;
 		case DnnModelParams.FRAMEWORK_ONNX_RUNTIME:
 			return DjlTools.ENGINE_ONNX_RUNTIME;
 		case DnnModelParams.FRAMEWORK_PYTORCH:
@@ -112,7 +114,7 @@ public class DjlDnnModelBuilder implements DnnModelBuilder<NDList> {
 	}
 	
 	@Override
-	public DnnModel<NDList> buildModel(DnnModelParams params) {
+	public DnnModel buildModel(DnnModelParams params) {
 		var framework = params.getFramework();
 		String engineName = null;
 		if (framework == null) {
