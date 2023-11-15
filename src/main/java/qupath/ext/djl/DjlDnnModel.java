@@ -23,7 +23,6 @@ import ai.djl.ndarray.types.LayoutType;
 import ai.djl.repository.zoo.ZooModel;
 import ai.djl.translate.NoBatchifyTranslator;
 import ai.djl.translate.TranslateException;
-import ai.djl.translate.Translator;
 import ai.djl.translate.TranslatorContext;
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.slf4j.Logger;
@@ -57,6 +56,11 @@ class DjlDnnModel implements DnnModel, AutoCloseable, UriResource {
 	private transient boolean failed;
 	private transient ZooModel<Mat[], Mat[]> model;
 	private transient Predictor<Mat[], Mat[]> predictor;
+
+	/**
+	 * Default layout for an OpenCV Mat
+	 */
+	private static final String DEFAULT_MAT_LAYOUT = getLayout(LayoutType.HEIGHT, LayoutType.WIDTH, LayoutType.CHANNEL);
 
 	DjlDnnModel(String engine, Collection<URI> uris, String ndLayout, Map<String, DnnShape> inputs, Map<String, DnnShape> outputs, boolean lazyInitialize) {
 		this.engine = engine;
@@ -119,7 +123,7 @@ class DjlDnnModel implements DnnModel, AutoCloseable, UriResource {
 	}
 
 	@Override
-	public Map<String, Mat> convertAndPredict(Map<String, Mat> blobs) {
+	public Map<String, Mat> predict(Map<String, Mat> blobs) {
 		synchronized (predictor) {
 			try {
 				var result = predictor.predict(blobs.values().stream().toArray(Mat[]::new));
@@ -131,13 +135,13 @@ class DjlDnnModel implements DnnModel, AutoCloseable, UriResource {
 	}
 
 	@Override
-	public Mat convertAndPredict(Mat mat) {
-		return DnnModel.super.convertAndPredict(mat);
+	public Mat predict(Mat mat) {
+		return DnnModel.super.predict(mat);
 	}
 
 	@Override
-	public List<Mat> batchConvertAndPredict(Mat... mats) {
-		return DnnModel.super.batchConvertAndPredict(mats);
+	public List<Mat> batchPredict(List<? extends Mat> mats) {
+		return DnnModel.super.batchPredict(mats);
 	}
 
 	@Override
@@ -149,8 +153,6 @@ class DjlDnnModel implements DnnModel, AutoCloseable, UriResource {
 		}
 	}
 
-	private static final String DEFAULT_MAT_LAYOUT = getLayout(LayoutType.HEIGHT, LayoutType.WIDTH, LayoutType.CHANNEL);
-	
 	private static String getLayout(LayoutType... layouts) {
 		return LayoutType.toString(layouts);
 	}

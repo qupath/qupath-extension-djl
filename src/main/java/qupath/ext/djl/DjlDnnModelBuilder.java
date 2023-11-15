@@ -41,6 +41,8 @@ public class DjlDnnModelBuilder implements DnnModelBuilder {
 		switch(framework) {
 		case DnnModelParams.FRAMEWORK_TENSORFLOW:
 			return DjlTools.ENGINE_TENSORFLOW;
+		case DnnModelParams.FRAMEWORK_TF_LITE:
+			return DjlTools.ENGINE_TFLITE;
 		case DnnModelParams.FRAMEWORK_ONNX_RUNTIME:
 			return DjlTools.ENGINE_ONNX_RUNTIME;
 		case DnnModelParams.FRAMEWORK_PYTORCH:
