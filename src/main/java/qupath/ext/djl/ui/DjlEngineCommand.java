@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-package qupath.ext.djl;
+package qupath.ext.djl.ui;
 
 import java.nio.file.Files;
+import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -24,7 +25,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import ai.djl.util.cuda.CudaUtils;
+import javafx.geometry.Pos;
 import javafx.scene.Cursor;
+import javafx.scene.Node;
+import javafx.scene.text.TextAlignment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,12 +52,11 @@ import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Label;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Tooltip;
-import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.GridPane;
-import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import qupath.ext.djl.DjlTools;
 import qupath.fx.dialogs.Dialogs;
 import qupath.fx.utils.GridPaneUtils;
 import qupath.lib.common.GeneralTools;
@@ -72,6 +76,8 @@ public class DjlEngineCommand {
 	private static final String TITLE = "Deep Java Library engines";
 	
 	private QuPathGUI qupath;
+
+	private static final ResourceBundle bundle = ResourceBundle.getBundle("qupath.ext.djl.ui.strings");
 	
 	private enum EngineStatus {
 		UNAVAILABLE, UNKNOWN, PENDING, AVAILABLE, FAILED
@@ -110,44 +116,46 @@ public class DjlEngineCommand {
 	
 	private void init() {
 		var pane = new GridPane();
+		pane.getStylesheets().add(DjlEngineCommand.class.getResource("styles.css").toExternalForm());
 		pane.setHgap(5);
 		pane.setVgap(5);
 		pane.setPadding(new Insets(10));
 		int row = 0;
-		
-		var label = new Label(
-				"Download Deep Java Library engines for inference."
-				);
-		label.setWrapText(true);
-		GridPaneUtils.addGridRow(pane, row++, 0, null, label, label);
-		var label2 = new Label(
-				"These will be stored in the local directories shown."
-				);
-		label2.setWrapText(true);
-		GridPaneUtils.addGridRow(pane, row++, 0, null, label2, label2);
 
-		var label3 = new Label(
-				"Please check the original engine's website for any licensing information.\n"
-				);
-		label3.setWrapText(true);
+		var label = createCenteredLabelForKey("overview.description");
+		GridPaneUtils.addGridRow(pane, row++, 0, null, label, label);
+		var label2 = createCenteredLabelForKey("overview.directories");
+		GridPaneUtils.addGridRow(pane, row++, 0, null, label2, label2);
+		var label3 = createCenteredLabelForKey("overview.licensing");
 		GridPaneUtils.addGridRow(pane, row++, 0, null, label3, label3);
 
+		var separator = new Separator(Orientation.HORIZONTAL);
+		GridPaneUtils.addGridRow(pane, row++, 0, null, separator, separator);
+
+		var labelCuda = createCenteredLabelForString(getCudaString());
+		GridPaneUtils.addGridRow(pane, row++, 0, null, labelCuda, labelCuda);
+
 		for (var name : Engine.getAllEngines()) {
-			var separator = new Separator(Orientation.HORIZONTAL);
+			separator = new Separator(Orientation.HORIZONTAL);
 			GridPaneUtils.addGridRow(pane, row++, 0, null, separator, separator);
 			GridPaneUtils.setToExpandGridPaneWidth(separator);
 			
 			var status = available.computeIfAbsent(name, n -> new SimpleObjectProperty<>(EngineStatus.UNKNOWN));
-			
+
 			var path = Utils.getEngineCacheDir(name);
-			
-			String tooltip = "Engine: " + name;
-			var labelName = new Label(name);
+
+			String tooltip = String.format(bundle.getString("tooltip.engine"), name);
+			String labelNameText = name;
+			if (name.equals(Engine.getDefaultEngineName())) {
+				labelNameText = String.format(bundle.getString("label.defaultName"), name);
+			}
+			var labelName = new Label(labelNameText);
 			labelName.setStyle("-fx-font-weight: bold;");
 			GridPaneUtils.addGridRow(pane, row++, 0, tooltip, labelName, labelName);
-			
+
 			var labelPath = new Label(path.toString());
-			var btnDownload = new Button("Download");
+			var btnDownload = new Button();
+			btnDownload.setText(bundle.getString("button.download"));
 			btnDownload.setPrefWidth(60.0);
 			long timeoutMillis = 500L;
 			btnDownload.setOnAction(e -> checkEngineStatus(name, status, timeoutMillis, false));
@@ -157,17 +165,16 @@ public class DjlEngineCommand {
 			btnDownload.textProperty().bind(Bindings.createStringBinding(() -> {
 				switch (status.get()) {
 				case AVAILABLE:
-					return "Available";
+					return bundle.getString("button.download.available");
 				case FAILED:
-					return "Try again";
+					return bundle.getString("button.download.failed");
 				case PENDING:
-					return "Pending";
-				case UNKNOWN:
-					return "Check / Download";
+					return bundle.getString("button.download.pending");
 				case UNAVAILABLE:
-					return "Download";
+					return bundle.getString("button.download.unavailable");
+				case UNKNOWN:
 				default:
-					return name + " download status is unknown";				
+					return bundle.getString("button.download.unknown");
 				}
 			}, status));
 			
@@ -190,23 +197,9 @@ public class DjlEngineCommand {
 			btnDownload.setTooltip(tooltipDownload);
 			
 			var circle = new Circle(6.0);
-			circle.setEffect(new DropShadow(2, 1, 1, Color.grayRgb(128, 0.5)));
-			circle.styleProperty().bind(Bindings.createStringBinding(() -> {
-				switch (status.get()) {
-				case AVAILABLE:
-					return "-fx-fill: lightgreen; -fx-opacity: 0.8";
-				case UNAVAILABLE:
-					return "-fx-fill: -fx-text-base-color; -fx-opacity: 0.5;";
-				case FAILED:
-					return "-fx-fill: darkred; -fx-opacity: 0.8";
-				case PENDING:
-					return "-fx-fill: yellow; -fx-opacity: 0.8";
-				case UNKNOWN:
-				default:
-					return "-fx-fill: orange; -fx-opacity: 0.8";
-				}
-			}, status));
-			var labelPathLabel = new Label("Path: ");
+			updateStyleFromStatus(status.get(), circle);
+
+			var labelPathLabel = createLabelForKey("label.path");
 			labelPathLabel.setGraphic(circle);
 			labelPathLabel.setLabelFor(labelPath);
 			labelPathLabel.setContentDisplay(ContentDisplay.LEFT);
@@ -214,11 +207,12 @@ public class DjlEngineCommand {
 			var tip = new Tooltip();
 			status.addListener((v, o, n) -> {
 				if (Files.isDirectory(path)) {
-					tip.setText("Double-click to open engine path");
+					tip.setText(bundle.getString("tooltip.openPath"));
 				} else {
 					labelPath.setStyle("-fx-opacity: 0.5;");
-					tip.setText("Engine path does not exist");	
-				}				
+					tip.setText(bundle.getString("tooltip.pathMissing"));
+				}
+				updateStyleFromStatus(n, circle);
 			});
 			labelPath.setTooltip(tip);
 			labelPath.setCursor(Cursor.HAND);
@@ -243,14 +237,68 @@ public class DjlEngineCommand {
 		stage.initModality(Modality.APPLICATION_MODAL);
 		stage.setScene(new Scene(pane));
 	}
-	
+
+	private static void updateStyleFromStatus(EngineStatus status, Node node) {
+		if (status == null)
+			status = EngineStatus.UNKNOWN;
+		node.getStyleClass().setAll("djl-engine-status", status.name().toString().toLowerCase());
+	}
+
+
+	private static Label createLabelForKey(String key) {
+		var label = new Label(bundle.getString(key));
+		label.setWrapText(true);
+		return label;
+	}
+
+
+	private static Label createCenteredLabelForKey(String key) {
+		return createCenteredLabelForString(bundle.getString(key));
+	}
+
+	private static Label createCenteredLabelForString(String s) {
+		var label = new Label(s);
+		label.setWrapText(true);
+		label.setAlignment(Pos.CENTER);
+		label.setTextAlignment(TextAlignment.CENTER);
+		label.setMaxHeight(Double.MAX_VALUE);
+		label.setMaxWidth(Double.MAX_VALUE);
+		return label;
+	}
+
+
 	private void showDialog() {
 		if (stage.isShowing())
 			stage.toFront();
 		else
 			stage.show();
 	}
-	
+
+	/**
+	 * Get a user-friendly string describing the CUDA version and GPUs.
+	 * @return
+	 */
+	private static String getCudaString() {
+		if (CudaUtils.hasCuda()) {
+			var sb = new StringBuilder()
+					.append(bundle.getString("label.cudaVersion"))
+					.append(CudaUtils.getCudaVersionString());
+			for (int i = 0; i < CudaUtils.getGpuCount(); i++) {
+				sb.append("\n")
+						.append("  GPU ")
+						.append(i)
+						.append(": ")
+						.append(CudaUtils.getComputeCapability(i));
+			}
+			return sb.toString();
+		} else if (GeneralTools.isMac() && "aarch64".equals(System.getProperty("os.arch"))) {
+			return bundle.getString("cuda.appleSilicon");
+		} else {
+			return bundle.getString("cuda.notFound");
+		}
+	}
+
+
 	private void checkEngineStatus(String name, ObjectProperty<EngineStatus> status, long timeoutMillis, boolean doQuietly) {
 		// Request the engine in a background thread, triggering download if necessary
 		var pool = Executors.newSingleThreadExecutor(ThreadTools.createThreadFactory("djl-engine-request", true));

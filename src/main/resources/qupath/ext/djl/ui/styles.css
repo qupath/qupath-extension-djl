@@ -1,0 +1,24 @@
+.djl-engine-status {
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.5), 4, 0, 1, 1);
+}
+
+.djl-engine-status.available {
+    -fx-fill: lightgreen;
+    -fx-opacity: 0.8;
+}
+.djl-engine-status.unavailable {
+    -fx-fill: -fx-text-base-color;
+    -fx-opacity: 0.5;
+}
+.djl-engine-status.failed {
+    -fx-fill: darkred;
+    -fx-opacity: 0.8;
+}
+.djl-engine-status.pending {
+    -fx-fill: yellow;
+    -fx-opacity: 0.8;
+}
+.djl-engine-status.unknown {
+    -fx-fill: orange;
+    -fx-opacity: 0.8;
+}
