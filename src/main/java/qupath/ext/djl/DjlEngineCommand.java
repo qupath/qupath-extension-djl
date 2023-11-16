@@ -24,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import javafx.scene.Cursor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,12 +89,13 @@ public class DjlEngineCommand {
 			);
 	
 	/**
-	 * Several engines definitely don't work on Apple Silicon.
+	 * Several engines definitely don't work on Apple Silicon (for now anyway).
 	 */
 	private static Set<String> UNSUPPORTED_APPLE_SILICON = Set.of(
 			DjlTools.ENGINE_PADDLEPADDLE,
 			DjlTools.ENGINE_TENSORFLOW,
-			DjlTools.ENGINE_LIGHTGBM			
+			DjlTools.ENGINE_TFLITE,
+			DjlTools.ENGINE_LIGHTGBM
 			);
 	
 	/**
@@ -218,7 +220,8 @@ public class DjlEngineCommand {
 					tip.setText("Engine path does not exist");	
 				}				
 			});
-			labelPathLabel.setTooltip(tip);
+			labelPath.setTooltip(tip);
+			labelPath.setCursor(Cursor.HAND);
 			labelPath.setOnMouseClicked(e -> {
 				if (e.getClickCount() == 2 && Files.isDirectory(path))
 					GuiTools.browseDirectory(path.toFile());

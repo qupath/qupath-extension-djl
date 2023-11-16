@@ -1,7 +1,7 @@
 plugins {
   id 'java-library'
   id 'maven-publish'
-  id 'com.github.johnrengelman.shadow' version '8.1.1'
+//  id 'com.github.johnrengelman.shadow' version '8.1.1'
   id 'org.openjfx.javafxplugin' version '0.1.0'
   // Version in settings.gradle
   id 'org.bytedeco.gradle-javacpp-platform'
@@ -34,12 +34,12 @@ repositories {
 
 
 dependencies {
-	shadow "io.github.qupath:qupath-gui-fx:${qupathVersion}"
-	shadow libs.qupath.fxtras
+	implementation "io.github.qupath:qupath-gui-fx:${qupathVersion}"
+	implementation libs.qupath.fxtras
 
     // These are included in QuPath distributions
-	shadow libs.bundles.logging
-	shadow libs.snakeyaml
+	implementation libs.bundles.logging
+	implementation libs.snakeyaml
     
     implementation "ai.djl:api:$djlVersion"
     
