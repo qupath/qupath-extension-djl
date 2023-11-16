@@ -122,22 +122,24 @@ public class DjlEngineCommand {
 		pane.setPadding(new Insets(10));
 		int row = 0;
 
-		var label = createCenteredLabelForKey("overview.description");
-		GridPaneUtils.addGridRow(pane, row++, 0, null, label, label);
+		var label = createCenteredLabelForString(
+				String.format(bundle.getString("overview.description"), Engine.getDjlVersion())
+		);
+		GridPaneUtils.addGridRow(pane, row++, 0, null, label, label, label);
 		var label2 = createCenteredLabelForKey("overview.directories");
-		GridPaneUtils.addGridRow(pane, row++, 0, null, label2, label2);
+		GridPaneUtils.addGridRow(pane, row++, 0, null, label2, label2, label2);
 		var label3 = createCenteredLabelForKey("overview.licensing");
-		GridPaneUtils.addGridRow(pane, row++, 0, null, label3, label3);
+		GridPaneUtils.addGridRow(pane, row++, 0, null, label3, label3, label3);
 
 		var separator = new Separator(Orientation.HORIZONTAL);
-		GridPaneUtils.addGridRow(pane, row++, 0, null, separator, separator);
+		GridPaneUtils.addGridRow(pane, row++, 0, null, separator, separator, separator);
 
 		var labelCuda = createCenteredLabelForString(getCudaString());
-		GridPaneUtils.addGridRow(pane, row++, 0, null, labelCuda, labelCuda);
+		GridPaneUtils.addGridRow(pane, row++, 0, null, labelCuda, labelCuda, labelCuda);
 
 		for (var name : Engine.getAllEngines()) {
 			separator = new Separator(Orientation.HORIZONTAL);
-			GridPaneUtils.addGridRow(pane, row++, 0, null, separator, separator);
+			GridPaneUtils.addGridRow(pane, row++, 0, null, separator, separator, separator);
 			GridPaneUtils.setToExpandGridPaneWidth(separator);
 			
 			var status = available.computeIfAbsent(name, n -> new SimpleObjectProperty<>(EngineStatus.UNKNOWN));
@@ -197,24 +199,15 @@ public class DjlEngineCommand {
 			btnDownload.setTooltip(tooltipDownload);
 			
 			var circle = new Circle(6.0);
-			updateStyleFromStatus(status.get(), circle);
+			updateIconFromStatus(status.get(), circle);
+
 
 			var labelPathLabel = createLabelForKey("label.path");
-			labelPathLabel.setGraphic(circle);
 			labelPathLabel.setLabelFor(labelPath);
 			labelPathLabel.setContentDisplay(ContentDisplay.LEFT);
 
-			var tip = new Tooltip();
-			status.addListener((v, o, n) -> {
-				if (Files.isDirectory(path)) {
-					tip.setText(bundle.getString("tooltip.openPath"));
-				} else {
-					labelPath.setStyle("-fx-opacity: 0.5;");
-					tip.setText(bundle.getString("tooltip.pathMissing"));
-				}
-				updateStyleFromStatus(n, circle);
-			});
-			labelPath.setTooltip(tip);
+			var tooltipPath = new Tooltip();
+			labelPath.setTooltip(tooltipPath);
 			labelPath.setCursor(Cursor.HAND);
 			labelPath.setOnMouseClicked(e -> {
 				if (e.getClickCount() == 2 && Files.isDirectory(path))
@@ -222,8 +215,30 @@ public class DjlEngineCommand {
 				else
 					logger.debug("Cannot open {} - directory does not exist", path);
 			});
-			GridPaneUtils.addGridRow(pane, row++, 0, null, labelPathLabel, labelPath);
-			GridPaneUtils.addGridRow(pane, row++, 0, null, btnDownload, btnDownload);
+
+			var labelVersion = new Label("");
+			labelVersion.setMaxWidth(Double.MAX_VALUE);
+
+			var labelVersionLabel = createLabelForKey("label.version");
+			labelVersionLabel.setLabelFor(labelVersion);
+			labelVersionLabel.setContentDisplay(ContentDisplay.LEFT);
+
+			status.addListener((v, o, n) -> {
+				if (Files.isDirectory(path)) {
+					tooltipPath.setText(bundle.getString("tooltip.openPath"));
+				} else {
+					labelPath.setStyle("-fx-opacity: 0.5;");
+					tooltipPath.setText(bundle.getString("tooltip.pathMissing"));
+				}
+				updateIconFromStatus(n, circle);
+				updateVersionFromStatus(n, name, labelVersion);
+			});
+
+			pane.add(circle, 0, row, 1, 2);
+
+			GridPaneUtils.addGridRow(pane, row++, 1, null, labelPathLabel, labelPath);
+			GridPaneUtils.addGridRow(pane, row++, 1, null, labelVersionLabel, labelVersion);
+			GridPaneUtils.addGridRow(pane, row++, 1, null, btnDownload, btnDownload);
 			
 			GridPaneUtils.setToExpandGridPaneWidth(labelName, labelPath, btnDownload);
 
@@ -238,10 +253,25 @@ public class DjlEngineCommand {
 		stage.setScene(new Scene(pane));
 	}
 
-	private static void updateStyleFromStatus(EngineStatus status, Node node) {
+	private static void updateIconFromStatus(EngineStatus status, Node node) {
 		if (status == null)
 			status = EngineStatus.UNKNOWN;
 		node.getStyleClass().setAll("djl-engine-status", status.name().toString().toLowerCase());
+	}
+
+	private static void updateVersionFromStatus(EngineStatus status, String engineName, Label labelVersion) {
+		if (status == EngineStatus.AVAILABLE) {
+			try {
+				var engine = Engine.getEngine(engineName);
+				labelVersion.setText(engine.getVersion());
+				labelVersion.setTooltip(new Tooltip(engine.toString()));
+				return;
+			} catch (Exception e) {
+				logger.error("Error updating engine version: {}", e.getMessage(), e);
+			}
+		}
+		labelVersion.setText("");
+		labelVersion.setTooltip(null);
 	}
 
 
@@ -287,7 +317,8 @@ public class DjlEngineCommand {
 				sb.append("\n")
 						.append("  GPU ")
 						.append(i)
-						.append(": ")
+						.append(" ")
+						.append(bundle.getString("label.computeCapability"))
 						.append(CudaUtils.getComputeCapability(i));
 			}
 			return sb.toString();
