@@ -1,3 +1,13 @@
+## Version 0.3.0-SNAPSHOT
+
+* Compatibility with QuPath v0.5.0
+  * Improved `DnnModel` implementation with better memory management
+* Show more useful information in the engine download dialog
+  * CUDA version if available
+  * GPU compute capability
+  * DJL and Engine versions
+* Externalize strings
+
 ## Version 0.2.0
 
 * Improve conversion of `NDArray` to more data types
