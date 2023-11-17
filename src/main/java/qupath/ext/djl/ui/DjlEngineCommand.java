@@ -29,6 +29,7 @@ import ai.djl.util.cuda.CudaUtils;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
+import javafx.scene.layout.StackPane;
 import javafx.scene.text.TextAlignment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,7 +55,6 @@ import javafx.scene.control.Separator;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.GridPane;
 import javafx.scene.shape.Circle;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
 import qupath.ext.djl.DjlTools;
 import qupath.fx.dialogs.Dialogs;
@@ -144,7 +144,9 @@ public class DjlEngineCommand {
 			
 			var status = available.computeIfAbsent(name, n -> new SimpleObjectProperty<>(EngineStatus.UNKNOWN));
 
-			var path = Utils.getEngineCacheDir(name);
+			// Names seem to be lower case in practice
+			// This matters on Linux, since otherwise the directory can't be found/opened
+			var path = Utils.getEngineCacheDir(name.toLowerCase());
 
 			String tooltip = String.format(bundle.getString("tooltip.engine"), name);
 			String labelNameText = name;
@@ -183,17 +185,17 @@ public class DjlEngineCommand {
 			var tooltipDownload = new Tooltip();
 			tooltipDownload.textProperty().bind(Bindings.createStringBinding(() -> {
 				switch (status.get()) {
-				case AVAILABLE:
-					return name + " is available";
-				case UNAVAILABLE:
-					return name + " is not available - click to download it";
-				case FAILED:
-					return name + " download & initialization failed - you can try again, but it may not be supported on this platform";
-				case PENDING:
-					return name + " download pending";
-				case UNKNOWN:
-				default:
-					return name + " download status is unknown";				
+					case AVAILABLE:
+						return String.format(bundle.getString("tooltip.download.available"), name);
+					case FAILED:
+						return String.format(bundle.getString("tooltip.download.failed"), name);
+					case PENDING:
+						return String.format(bundle.getString("tooltip.download.pending"), name);
+					case UNAVAILABLE:
+						return String.format(bundle.getString("tooltip.download.unavailable"), name);
+					case UNKNOWN:
+					default:
+						return String.format(bundle.getString("tooltip.download.unknown"), name);
 				}
 			}, status));
 			btnDownload.setTooltip(tooltipDownload);
@@ -216,7 +218,7 @@ public class DjlEngineCommand {
 					logger.debug("Cannot open {} - directory does not exist", path);
 			});
 
-			var labelVersion = new Label("");
+			var labelVersion = new Label(bundle.getString("label.version.unknown"));
 			labelVersion.setMaxWidth(Double.MAX_VALUE);
 
 			var labelVersionLabel = createLabelForKey("label.version");
@@ -234,7 +236,9 @@ public class DjlEngineCommand {
 				updateVersionFromStatus(n, name, labelVersion);
 			});
 
-			pane.add(circle, 0, row, 1, 2);
+			var circlePane = new StackPane(circle);
+			circlePane.setPadding(new Insets(5));
+			pane.add(circlePane, 0, row, 1, 2);
 
 			GridPaneUtils.addGridRow(pane, row++, 1, null, labelPathLabel, labelPath);
 			GridPaneUtils.addGridRow(pane, row++, 1, null, labelVersionLabel, labelVersion);
@@ -243,13 +247,13 @@ public class DjlEngineCommand {
 			GridPaneUtils.setToExpandGridPaneWidth(labelName, labelPath, btnDownload);
 
 			// Update the engine status quietly
-			checkEngineStatus(name, status, -1, true);
+//			checkEngineStatus(name, status, -1, true);
 		}
 		
 		stage = new Stage();
 		stage.setTitle(TITLE);
 		stage.initOwner(QuPathGUI.getInstance().getStage());
-		stage.initModality(Modality.APPLICATION_MODAL);
+//		stage.initModality(Modality.WINDOW_MODAL);
 		stage.setScene(new Scene(pane));
 	}
 
@@ -270,7 +274,7 @@ public class DjlEngineCommand {
 				logger.error("Error updating engine version: {}", e.getMessage(), e);
 			}
 		}
-		labelVersion.setText("");
+		labelVersion.setText(bundle.getString("label.version.unknown"));
 		labelVersion.setTooltip(null);
 	}
 
@@ -342,8 +346,7 @@ public class DjlEngineCommand {
 			// Wait until the timeout - engine might already be available & return quickly
 			var result = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
 			if (result != null && result.booleanValue()) {
-				Dialogs.showInfoNotification(TITLE, name + " is available!");
-				return;
+				Dialogs.showInfoNotification(TITLE, String.format(bundle.getString("notify.engine.available"), name));
 			} else
 				logger.debug("No engine available for {}", name);
 		} catch (InterruptedException e) {
@@ -368,7 +371,7 @@ public class DjlEngineCommand {
 
 		if (!GeneralTools.isLinux() && LINUX_ONLY.contains(name)) {
 			if (!doQuietly)
-				Dialogs.showErrorMessage(TITLE, name + " is only available on Linux, sorry");
+				Dialogs.showErrorMessage(TITLE, String.format(bundle.getString("notify.engine.linuxOnly"), name));
 			updateStatus(status, EngineStatus.UNAVAILABLE);
 			return Boolean.FALSE;
 		}
@@ -400,8 +403,6 @@ public class DjlEngineCommand {
 				isAvailable = DjlTools.getEngine(name, true) != null;
 			if (isAvailable) {
 				updateStatus(status, EngineStatus.AVAILABLE);
-				if (!doQuietly)
-					Dialogs.showInfoNotification(TITLE, name + " is now available!");
 			} else {
 				updateStatus(status, EngineStatus.UNAVAILABLE);
 				if (!doQuietly) {
