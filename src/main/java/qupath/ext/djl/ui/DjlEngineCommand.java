@@ -250,6 +250,8 @@ public class DjlEngineCommand {
 		stage.setTitle(TITLE);
 		stage.initOwner(QuPathGUI.getInstance().getStage());
 		stage.initModality(Modality.APPLICATION_MODAL);
+		stage.setMinWidth(500);
+		stage.setMinHeight(375);
 		stage.setScene(new Scene(pane));
 	}
 
