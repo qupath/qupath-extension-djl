@@ -329,7 +329,6 @@ public class DjlEngineCommand {
 		}
 	}
 
-
 	private void checkEngineStatus(String name, ObjectProperty<EngineStatus> status, long timeoutMillis, boolean doQuietly) {
 		// Request the engine in a background thread, triggering download if necessary
 		var pool = Executors.newSingleThreadExecutor(ThreadTools.createThreadFactory("djl-engine-request", true));

@@ -243,7 +243,6 @@ public class DjlTools {
 		if (!hasEngine(name)) {
 			throw new IllegalArgumentException("Requested engine " + name + " is not available!");
 		}
-				
 		synchronized (lock) {
 			var offlineStatus = System.getProperty("offline");
 			try {
@@ -264,20 +263,19 @@ public class DjlTools {
 						logger.error("Unable to reset JavaCPP platform properties: " + e.getLocalizedMessage(), e);
 					}
 				}
-				
 				var engine = Engine.getEngine(name);
 				if (engine != null)
 					loadedEngines.add(name);
 				return engine;
-			} catch (Exception e) {
+			} catch (Throwable t) {
 				if (downloadIfNeeded)
-					logger.error("Unable to get engine " + name + ": " + e.getLocalizedMessage(), e);
+					logger.error("Unable to get engine " + name + ": " + t.getLocalizedMessage(), t);
 				else {
-					var msg = e.getLocalizedMessage();
+					var msg = t.getLocalizedMessage();
 					if (msg == null)
 						logger.warn("Unable to get engine {}", name);
 					else
-						logger.warn("Unable to get engine {} ({})", name, e.getLocalizedMessage());
+						logger.warn("Unable to get engine {} ({})", name, msg);
 				}
 				return null;
 			} finally {
