@@ -252,32 +252,19 @@ public class DjlTools {
 				else
 					System.setProperty("offline", "true");
 				
-				// If trying to instantiate a TensorFlow engine for the first time, 
-				// we need to reset the javacpp platform properties for the preload 
-				// path to be correctly identified
-				if (ENGINE_TENSORFLOW.equalsIgnoreCase(name) && !loadedEngines.contains(name)) {
-					try {
-						var f = Loader.class.getDeclaredField("platformProperties");
-				        f.setAccessible(true);
-				        f.set(null, null);
-					} catch (Exception e) {
-						logger.error("Unable to reset JavaCPP platform properties: " + e.getLocalizedMessage(), e);
-					}
-				}
-				
 				var engine = Engine.getEngine(name);
 				if (engine != null)
 					loadedEngines.add(name);
 				return engine;
 			} catch (Exception e) {
 				if (downloadIfNeeded)
-					logger.error("Unable to get engine " + name + ": " + e.getLocalizedMessage(), e);
+					logger.error("Unable to get engine " + name + ": " + e.getMessage(), e);
 				else {
 					var msg = e.getLocalizedMessage();
 					if (msg == null)
 						logger.warn("Unable to get engine {}", name);
 					else
-						logger.warn("Unable to get engine {} ({})", name, e.getLocalizedMessage());
+						logger.warn("Unable to get engine {} ({})", name, e.getMessage());
 				}
 				return null;
 			} finally {

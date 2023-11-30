@@ -44,7 +44,7 @@ dependencies {
     implementation "ai.djl:api:$djlVersion"
     
     testImplementation libs.junit
-    testRuntimeOnly libs.junit.engine
+    testRuntimeOnly libs.junit.platform
 
 }
 
