@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import qupath.ext.djl.ui.DjlEngineCommand;
+import qupath.ext.djl.ui.LaunchScriptCommand;
 import qupath.lib.common.Version;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.extensions.GitHubProject;
@@ -55,10 +56,14 @@ public class DjlExtension implements QuPathExtension, GitHubProject {
 		// Use this instead of a ServiceLoader for now, because we can't rely upon 
 		// the context class loader finding the builder
 		DnnModels.registerBuilder(builder);
+		var menu = qupath.getMenu("Extensions>Deep Java Library", true);
 		MenuTools.addMenuItems(
-                qupath.getMenu("Extensions>Deep Java Library", true),
+				menu,
                 new Action("Manage DJL engines", e -> DjlEngineCommand.showDialog(qupath))
         );
+		var cmd = new LaunchScriptCommand();
+		var action = new Action("Create launch script", e -> cmd.promptForScript());
+		MenuTools.addMenuItems(menu, action);
 	}
 
 	@Override
