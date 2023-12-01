@@ -268,7 +268,7 @@ public class LaunchScriptCommand {
         // Command to launch QuPath itself
         if (!sb.toString().endsWith(System.lineSeparator() + System.lineSeparator()))
             sb.append(System.lineSeparator());
-        sb.append(qupathExecutable);
+        sb.append(quoteIfNeeded(qupathExecutable));
 
         // On Linux, we need to set the JNA path to find CUDA
         if (pathVariable != null && !pathVariable.isEmpty() && !GeneralTools.isWindows()) {
