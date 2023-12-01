@@ -326,8 +326,8 @@ public class LaunchScriptCommand {
         if (GeneralTools.isWindows()) {
             executables = dir.listFiles(f -> f.isFile() && f.getName().toLowerCase().endsWith(".exe"));
         } else {
-            if (new File(dir, "bin").exists()) {
-                dir = new File(dir, "bin");
+            if (new File(dir.getParentFile(), "bin").exists()) {
+                dir = new File(dir.getParentFile(), "bin");
             } else if (GeneralTools.isMac() && new File(dir, "MacOS").exists()) {
                 dir = new File(dir, "MacOS");
             }
