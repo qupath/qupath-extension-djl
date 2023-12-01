@@ -10,9 +10,11 @@ plugins {
 ext.moduleName = 'qupath.extension.djl'
 ext.qupathVersion = gradle.ext.qupathVersion
 
-description = 'QuPath extension to use Deep Java Library'
-version = "0.3.0-SNAPSHOT"
-group = 'io.github.qupath'
+base {
+	description = 'QuPath extension to use Deep Java Library'
+	version = "0.3.0"
+	group = 'io.github.qupath'
+}
 
 def djlVersion = libs.versions.deepJavaLibrary.get()
 
