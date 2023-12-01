@@ -33,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.fx.dialogs.Dialogs;
 import qupath.fx.dialogs.FileChoosers;
-import qupath.fx.localization.LocalizedResourceManager;
 import qupath.fx.prefs.annotations.DirectoryPref;
 import qupath.fx.prefs.annotations.FilePref;
 import qupath.fx.prefs.annotations.Pref;
@@ -44,6 +43,7 @@ import qupath.lib.common.GeneralTools;
 import qupath.lib.gui.localization.QuPathResources;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -223,10 +223,15 @@ public class LaunchScriptCommand {
         // Set path variable from conda, if possible
         String condaPath = params.remove(KEY_CONDA_PATH);
         String pathVariable = null;
+        String cudnnPath = null;
         if (condaPath != null && !condaPath.isEmpty()) {
             List<String> paths = new ArrayList();
             paths.add(condaPath);
             paths.add(condaPath + File.separator + "bin");
+            paths.add(condaPath + File.separator + "lib");
+            var dirCudnn = findCuDnnDir(new File(condaPath));
+            if (dirCudnn != null)
+                cudnnPath = dirCudnn.getAbsolutePath();
             pathVariable = String.join(File.pathSeparator, paths);
         }
 
@@ -245,16 +250,19 @@ public class LaunchScriptCommand {
             }
         }
 
+        // On Windows, setting the PATH should be enough for everything
         if (pathVariable != null && !pathVariable.isEmpty()) {
             if (GeneralTools.isWindows()) {
                 if (!params.containsKey("PATH"))
                     appendToEnvironment(sb, "PATH",
                             pathVariable + File.pathSeparator + "%PATH%");
-            } else {
-                if (!params.containsKey("LD_LIBRARY_PATH"))
-                    appendToEnvironment(sb, "LD_LIBRARY_PATH",
-                            pathVariable + File.pathSeparator + "$LD_LIBRARY_PATH");
             }
+        }
+
+        // On Linux we need LD_LIBRARY_PATH to find cudnn only (the rest is up to JNA)
+        if (GeneralTools.isLinux() && !params.containsKey("LD_LIBRARY_PATH") && cudnnPath != null) {
+            appendToEnvironment(sb, "LD_LIBRARY_PATH",
+                    cudnnPath + File.pathSeparator + "$LD_LIBRARY_PATH");
         }
 
         // Command to launch QuPath itself
@@ -262,7 +270,7 @@ public class LaunchScriptCommand {
             sb.append(System.lineSeparator());
         sb.append(qupathExecutable);
 
-        // On Linux, we need to set the JNA path as well
+        // On Linux, we need to set the JNA path to find CUDA
         if (pathVariable != null && !pathVariable.isEmpty() && !GeneralTools.isWindows()) {
             String jnaPath = System.getProperty("jna.library.path");
             if (jnaPath == null || jnaPath.isEmpty())
@@ -276,6 +284,24 @@ public class LaunchScriptCommand {
 
         return sb.toString();
     }
+
+    private static File findCuDnnDir(File dir) {
+        if (!dir.exists())
+            return null;
+        String name = System.mapLibraryName("cudnn");
+        try {
+            var pathCuDnn = Files.walk(dir.toPath())
+                    .filter(p -> p.getFileName().toString().startsWith(name))
+                    .findFirst()
+                    .orElse(null);
+            logger.info("Searching for {}, found {}", name, pathCuDnn);
+            return pathCuDnn == null ? null : pathCuDnn.toFile().getParentFile();
+        } catch (IOException e) {
+            logger.warn("Error searching for cudnn: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
 
     private static void appendToEnvironment(StringBuilder sb, String key, String val) {
         if (val != null && !val.isEmpty()) {
