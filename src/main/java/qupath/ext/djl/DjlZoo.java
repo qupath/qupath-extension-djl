@@ -244,10 +244,10 @@ public class DjlZoo {
 	 * @throws IOException
 	 */
 	public static Criteria<?, ?> buildCriteria(Artifact artifact, boolean allowDownload) throws ModelNotFoundException, MalformedModelException, IOException {
-		var before = System.getProperty("offline");
+		var before = System.getProperty("ai.djl.offline");
 		try {
 			if (allowDownload)
-				System.setProperty("offline", "false");
+				System.setProperty("ai.djl.offline", "false");
 			
 			
 			var application = artifact.getMetadata().getApplication();
@@ -300,7 +300,7 @@ public class DjlZoo {
 			}
 			return builder.build();
 		} finally {
-			System.setProperty("offline", before);
+			System.setProperty("ai.djl.offline", before);
 		}
 	}
 	

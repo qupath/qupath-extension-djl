@@ -268,7 +268,8 @@ public class DjlEngineCommand {
 			try {
 				var engine = Engine.getEngine(engineName);
 				labelVersion.setText(engine.getVersion());
-				labelVersion.setTooltip(new Tooltip(engine.toString()));
+				// this is toString, but TF ends up trying to download again.
+				labelVersion.setTooltip(new Tooltip(engine.getEngineName() + ':' + engine.getVersion()));
 				return;
 			} catch (Exception e) {
 				logger.error("Error updating engine version: {}", e.getMessage(), e);
