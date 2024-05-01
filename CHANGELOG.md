@@ -1,4 +1,9 @@
-## Version 0.3.0-SNAPSHOT
+## Version 0.4.0-SNAPSHOT
+
+*Work-in-progress for QuPath v0.6.0*
+
+
+## Version 0.3.0
 
 * Compatibility with QuPath v0.5.0
   * Improved `DnnModel` implementation with better memory management
