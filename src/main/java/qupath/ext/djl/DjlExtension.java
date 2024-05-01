@@ -43,7 +43,7 @@ public class DjlExtension implements QuPathExtension, GitHubProject {
 	
 	static {
 		// Prevent downloading engines automatically
-		System.setProperty("offline", "true");
+		System.setProperty("ai.djl.offline", "true");
 		// Opt out of tracking, see https://github.com/deepjavalibrary/djl/pull/2178/files
 		System.setProperty("OPT_OUT_TRACKING", "true");
 	}

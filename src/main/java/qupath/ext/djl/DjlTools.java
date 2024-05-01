@@ -245,21 +245,20 @@ public class DjlTools {
 		}
 				
 		synchronized (lock) {
-			var offlineStatus = System.getProperty("offline");
+			var offlineStatus = System.getProperty("ai.djl.offline");
 			try {
 				if (downloadIfNeeded)
-					System.setProperty("offline", "false");
+					System.setProperty("ai.djl.offline", "false");
 				else
-					System.setProperty("offline", "true");
-				
+					System.setProperty("ai.djl.offline", "true");
 				var engine = Engine.getEngine(name);
 				if (engine != null)
 					loadedEngines.add(name);
 				return engine;
 			} catch (Exception e) {
-				if (downloadIfNeeded)
+				if (downloadIfNeeded) {
 					logger.error("Unable to get engine " + name + ": " + e.getMessage(), e);
-				else {
+				} else {
 					var msg = e.getLocalizedMessage();
 					if (msg == null)
 						logger.warn("Unable to get engine {}", name);
@@ -268,7 +267,7 @@ public class DjlTools {
 				}
 				return null;
 			} finally {
-				System.setProperty("offline", offlineStatus);
+				System.setProperty("ai.djl.offline", offlineStatus);
 			}
 		}
 	}
