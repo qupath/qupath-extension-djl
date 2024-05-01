@@ -348,11 +348,11 @@ public class DjlTools {
 	 */
 	public static Collection<String> getAvailableDevices(String engineName) {
 		Set<String> availableDevices = new LinkedHashSet<>();
-		boolean includesMPS = false; // Don't add MPS twice
 		var engine = DjlTools.getEngine(engineName, false);
 		if (engine == null) {
 			return List.of();
 		}
+		boolean includesMPS = false; // Don't add MPS twice
 		// This is expected to return GPUs if available, or CPU otherwise
 		for (var device : engine.getDevices()) {
 			String name = device.getDeviceType();
@@ -364,7 +364,10 @@ public class DjlTools {
 		availableDevices.add("cpu");
 
 		// If we could use MPS, but don't have it already, add it
-		if (!includesMPS && GeneralTools.isMac() && "aarch64".equals(System.getProperty("os.arch"))) {
+		if (engineName.equalsIgnoreCase("pytorch")
+				&& !includesMPS
+				&& GeneralTools.isMac()
+				&& "aarch64".equals(System.getProperty("os.arch"))) {
 			availableDevices.add("mps");
 		}
 		return availableDevices;
