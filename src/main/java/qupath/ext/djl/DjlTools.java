@@ -598,8 +598,15 @@ public class DjlTools {
 			} catch (Exception e) {
 				logger.error("Exception requesting doubles from NDArray");
 			}
+		} else if (array.getDataType() == DataType.INT64) {
+			try {
+				return Arrays.stream(array.toLongArray()).mapToDouble(i -> i).toArray();
+			} catch (Exception e) {
+				logger.error("Exception requesting doubles from NDArray (from longs)");
+			}
 		}
-		return array.toType(DataType.FLOAT64, true).toDoubleArray();
+		// If the device is MPS, we can't convert to float64 - so make sure we're on the CPU
+		return array.toDevice(Device.cpu(), false).toType(DataType.FLOAT64, true).toDoubleArray();
 	}
 
 	/**
