@@ -90,16 +90,15 @@ public class DjlEngineCommand {
 	/**
 	 * Engine only supported on Linux
 	 */
-	private static Set<String> LINUX_ONLY = Set.of(
+	private static final Set<String> LINUX_ONLY = Set.of(
 			DjlTools.ENGINE_TENSORRT
 			);
 	
 	/**
 	 * Several engines definitely don't work on Apple Silicon (for now anyway).
 	 */
-	private static Set<String> UNSUPPORTED_APPLE_SILICON = Set.of(
+	private static final Set<String> UNSUPPORTED_APPLE_SILICON = Set.of(
 			DjlTools.ENGINE_PADDLEPADDLE,
-			DjlTools.ENGINE_TENSORFLOW,
 			DjlTools.ENGINE_TFLITE,
 			DjlTools.ENGINE_LIGHTGBM
 			);
@@ -107,7 +106,7 @@ public class DjlEngineCommand {
 	/**
 	 * Maintain a map to indicate if the engine is available or not
 	 */
-	private ObservableMap<String, ObjectProperty<EngineStatus>> available = FXCollections.observableHashMap();
+	private final ObservableMap<String, ObjectProperty<EngineStatus>> available = FXCollections.observableHashMap();
 	
 	DjlEngineCommand(QuPathGUI qupath) {
 		this.qupath = qupath;

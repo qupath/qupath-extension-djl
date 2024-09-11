@@ -2,6 +2,8 @@
 
 *Work-in-progress for QuPath v0.6.0*
 
+* Compatibility with QuPath v0.6.0
+
 
 ## Version 0.3.0
 
