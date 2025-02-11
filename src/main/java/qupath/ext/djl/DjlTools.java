@@ -41,6 +41,7 @@ import org.bytedeco.javacpp.indexer.LongIndexer;
 import org.bytedeco.javacpp.indexer.UByteIndexer;
 import org.bytedeco.javacpp.indexer.UShortIndexer;
 import org.bytedeco.opencv.global.opencv_core;
+import org.bytedeco.opencv.global.opencv_dnn;
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -394,14 +395,19 @@ public class DjlTools {
 		int indHW = ndLayout.indexOf("HW");
 		if (indHW < 0)
 			throw new IllegalArgumentException("Expected layout contains HW, but provided layout is " + ndLayout);
+		long nChannels = shape.get(indC);
 		// Copy all at once is using the same storage order as OpenCV
 		// TODO: Check what this order is!!!
 		NDArray array = null;
 		if (indC > indHW || shape.get(indC) == 1) {
 			var buffer = mat.createBuffer();
 			array = manager.create(buffer, shape, dataType);			
+		} else if (("NCHW".equals(ndLayout) || "CHW".equals(ndLayout)) && (nChannels == 3L || nChannels == 4L)) {
+			// Channels-first - an OpenCV blob is defined to have the order NCHW, but an Image can only have 1, 3 or 4 channels
+			array = manager.create(opencv_dnn.blobFromImage(mat).createBuffer(), shape, dataType);
 		} else {
-			var shapeDims = shape.getShape();
+			// Really awkward strategy to handle channels in an uncommon place (shouldn't actually occur?)
+			var shapeDims = shape.getShape().clone();
 			shapeDims[indC] = 1;
 			var shapeChannel = new Shape(shapeDims, shape.getLayout());
 
