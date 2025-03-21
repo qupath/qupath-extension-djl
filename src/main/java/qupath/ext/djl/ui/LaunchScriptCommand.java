@@ -17,6 +17,7 @@
 package qupath.ext.djl.ui;
 
 import ai.djl.engine.Engine;
+import java.nio.file.Path;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.geometry.Insets;
@@ -189,17 +190,15 @@ public class LaunchScriptCommand {
 
         public List<String> getPyTorchVersions() {
             var version = Engine.getDjlVersion();
-            switch (version) {
-                case "0.23.0":
-                case "0.24.0":
-                case "0.25.0":
-                    return Arrays.asList("Default", "2.0.1", "1.13.1", "1.12.1");
-                case "0.26.0":
-                    return Arrays.asList("Default", "2.1.1", "2.0.1", "1.13.1");
-                default:
+            return switch (version) {
+                case "0.23.0", "0.24.0", "0.25.0" -> Arrays.asList("Default", "2.0.1", "1.13.1", "1.12.1");
+                case "0.26.0" -> Arrays.asList("Default", "2.1.1", "2.0.1", "1.13.1");
+                case "0.32.0" -> Arrays.asList("Default", "2.5.1", "2.3.1", "2.1.2", "1.13.1");
+                default -> {
                     // Exception here should be caught by the caller & a text field used as a prompt
                     throw new RuntimeException("Unknown DJL version: " + version);
-            }
+                }
+            };
         }
 
     }
@@ -222,6 +221,10 @@ public class LaunchScriptCommand {
 
         // Set path variable from conda, if possible
         String condaPath = params.remove(KEY_CONDA_PATH);
+        if (condaPath.startsWith(" ") || condaPath.endsWith(" ")) {
+            logger.warn("Conda path has leading or trailing white space; this is probably a mistake (removing)");
+            condaPath = condaPath.strip();
+        }
         String pathVariable = null;
         String cudnnPath = null;
         if (condaPath != null && !condaPath.isEmpty()) {
@@ -230,6 +233,11 @@ public class LaunchScriptCommand {
             paths.add(condaPath + File.separator + "bin");
             paths.add(condaPath + File.separator + "lib");
             paths.add(condaPath + File.separator + "lib" + File.separator + "site-packages" + File.separator + "torch" + File.separator + "lib");
+            for (String path: paths) {
+                if (!Files.exists(Path.of(path))) {
+                    logger.warn("Path {} does not exist", path);
+                }
+            }
             var dirCudnn = findCuDnnDir(new File(condaPath));
             if (dirCudnn != null)
                 cudnnPath = dirCudnn.getAbsolutePath();
