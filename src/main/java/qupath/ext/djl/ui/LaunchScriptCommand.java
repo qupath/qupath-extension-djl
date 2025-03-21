@@ -229,6 +229,7 @@ public class LaunchScriptCommand {
             paths.add(condaPath);
             paths.add(condaPath + File.separator + "bin");
             paths.add(condaPath + File.separator + "lib");
+            paths.add(condaPath + File.separator + "lib" + File.separator + "site-packages" + File.separator + "torch" + File.separator + "lib");
             var dirCudnn = findCuDnnDir(new File(condaPath));
             if (dirCudnn != null)
                 cudnnPath = dirCudnn.getAbsolutePath();
