@@ -125,6 +125,7 @@ class DjlDnnModel implements DnnModel, AutoCloseable, UriResource {
 
 	@Override
 	public Map<String, Mat> predict(Map<String, Mat> blobs) {
+		ensureInitialized();
 		synchronized (predictor) {
 			try {
 				var result = predictor.predict(blobs.values().stream().toArray(Mat[]::new));
