@@ -37,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import ai.djl.repository.MRL;
 import org.locationtech.jts.geom.util.AffineTransformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,29 +109,25 @@ public class DjlZoo {
 	 * Print all available zoo models to the log.
 	 */
 	public static void logAvailableModels() {
-		try {
-			for (var entry : ModelZoo.listModels().entrySet()) {
-				logger.info("Application: {}", entry.getKey());
-				for (var artifact : entry.getValue()) {
-					logger.info("  {}: {}", artifact.getName(), artifact.toString());
-				}
+		for (var entry : ModelZoo.listModels().entrySet()) {
+			logger.info("Application: {}", entry.getKey());
+			for (var artifact : entry.getValue()) {
+				logger.info("  {}", artifact.toString());
 			}
-		} catch (ModelNotFoundException | IOException e) {
-			logger.error("Exception requesting ModelZoo models: " + e.getLocalizedMessage(), e);
 		}
 	}
 	
 	/**
 	 * Ordered list of the inputs we prefer (because we know how to handle them)
 	 */
-	private static List<Class<?>> preferredInputs = Arrays.asList(
+	private static final List<Class<?>> preferredInputs = Arrays.asList(
 			Image.class, 
 			NDList.class);
 
 	/**
 	 * Ordered list of the outputs we prefer (because we know how to handle them)
 	 */
-	private static List<Class<?>> preferredOutputs = Arrays.asList(
+	private static final List<Class<?>> preferredOutputs = Arrays.asList(
 			CategoryMask.class, 
 			DetectedObjects.class,
 			Joints.class, 
@@ -146,8 +143,8 @@ public class DjlZoo {
 	 * @throws ModelNotFoundException
 	 * @throws IOException
 	 */
-	public static List<Artifact> listModels(Criteria<?, ?> criteria) throws ModelNotFoundException, IOException {
-		var list = new ArrayList<Artifact>();
+	public static List<MRL> listModels(Criteria<?, ?> criteria) throws ModelNotFoundException, IOException {
+		var list = new ArrayList<MRL>();
 		for (var entry : ModelZoo.listModels(criteria).entrySet()) {
 			list.addAll(entry.getValue());
 		}
@@ -161,7 +158,7 @@ public class DjlZoo {
 	 * @throws ModelNotFoundException
 	 * @throws IOException
 	 */
-	public static List<Artifact> listModels(Application application) throws ModelNotFoundException, IOException {
+	public static List<MRL> listModels(Application application) throws ModelNotFoundException, IOException {
 		var criteria = Criteria.builder()
 				.optApplication(application)
 				.build();
@@ -174,7 +171,7 @@ public class DjlZoo {
 	 * @throws ModelNotFoundException
 	 * @throws IOException
 	 */
-	public static List<Artifact> listModels() throws ModelNotFoundException, IOException {
+	public static List<MRL> listModels() throws ModelNotFoundException, IOException {
 		return listModels(Criteria.builder().build());
 	}
 	
@@ -184,7 +181,7 @@ public class DjlZoo {
 	 * @throws ModelNotFoundException
 	 * @throws IOException
 	 */
-	public static List<Artifact> listImageClassificationModels() throws ModelNotFoundException, IOException {
+	public static List<MRL> listImageClassificationModels() throws ModelNotFoundException, IOException {
 		return listModels(Application.CV.IMAGE_CLASSIFICATION);
 	}
 	
@@ -194,7 +191,7 @@ public class DjlZoo {
 	 * @throws ModelNotFoundException
 	 * @throws IOException
 	 */
-	public static List<Artifact> listSemanticSegmentationModels() throws ModelNotFoundException, IOException {
+	public static List<MRL> listSemanticSegmentationModels() throws ModelNotFoundException, IOException {
 		return listModels(Application.CV.SEMANTIC_SEGMENTATION);
 	}
 	
@@ -204,7 +201,7 @@ public class DjlZoo {
 	 * @throws ModelNotFoundException
 	 * @throws IOException
 	 */
-	public static List<Artifact> listObjectDetectionModels() throws ModelNotFoundException, IOException {
+	public static List<MRL> listObjectDetectionModels() throws ModelNotFoundException, IOException {
 		return listModels(Application.CV.OBJECT_DETECTION);
 	}
 
@@ -214,7 +211,7 @@ public class DjlZoo {
 	 * @throws ModelNotFoundException
 	 * @throws IOException
 	 */
-	public static List<Artifact> listInstanceSegmentationModels() throws ModelNotFoundException, IOException {
+	public static List<MRL> listInstanceSegmentationModels() throws ModelNotFoundException, IOException {
 		return listModels(Application.CV.INSTANCE_SEGMENTATION);
 	}
 	
@@ -229,8 +226,7 @@ public class DjlZoo {
 	 */
 	public static ZooModel<?, ?> loadModel(Artifact artifact, boolean allowDownload) throws ModelNotFoundException, MalformedModelException, IOException {
 		var criteria = buildCriteria(artifact, allowDownload);
-		var model = criteria.loadModel();
-		return model;
+        return criteria.loadModel();
 	}
 	
 	/**
