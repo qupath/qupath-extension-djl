@@ -50,6 +50,9 @@ public class DjlExtension implements QuPathExtension, GitHubProject {
 
 	@Override
 	public void installExtension(QuPathGUI qupath) {
+		if (QuPathGUI.getVersion().compareTo(Version.parse("v0.6.0")) < 0) {
+			throw new UnsupportedOperationException("This extension version is incompatible with QuPath < v0.6.0");
+		}
 		logger.debug("Installing Deep Java Library extension");
 		logger.info("Registering DjlDnnModel");
 		DnnModels.registerDnnModel(DjlDnnModel.class, DjlDnnModel.class.getSimpleName());
