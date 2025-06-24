@@ -26,12 +26,12 @@ jobs:
         if: ${{ inputs.release }}
         shell: bash
         run: |
-          echo "RELEASE_FLAG='-P release'" >> $GITHUB_ENV
+          echo "RELEASE_FLAG='-Prelease'" >> $GITHUB_ENV
 
       - name: Publish
         shell: bash
         run: |
-          ./gradlew publish -P toolchain=21 $RELEASE_FLAG
+          ./gradlew publish -Ptoolchain=21 $RELEASE_FLAG
         env:
           MAVEN_USER: ${{ secrets.MAVEN_USER }}
           MAVEN_PASS: ${{ secrets.MAVEN_PASS }}
