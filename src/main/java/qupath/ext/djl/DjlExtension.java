@@ -50,7 +50,7 @@ public class DjlExtension implements QuPathExtension, GitHubProject {
 
 	@Override
 	public void installExtension(QuPathGUI qupath) {
-		if (QuPathGUI.getVersion().compareTo(getQuPathVersion()) < 0) {
+		if (QuPathGUI.getVersion().compareTo(Version.parse("0.6.0-SNAPSHOT")) < 0 && !QuPathGUI.getVersion().equals(Version.parse("0.6.0-SNAPSHOT"))) {
 			throw new UnsupportedOperationException("This extension version is incompatible with QuPath < v" + getQuPathVersion());
 		}
 		logger.debug("Installing Deep Java Library extension");
