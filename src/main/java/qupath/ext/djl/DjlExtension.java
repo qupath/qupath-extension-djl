@@ -27,7 +27,6 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.extensions.GitHubProject;
 import qupath.lib.gui.extensions.QuPathExtension;
 import qupath.lib.gui.tools.MenuTools;
-import qupath.lib.scripting.QP;
 import qupath.opencv.dnn.DnnModelBuilder;
 import qupath.opencv.dnn.DnnModels;
 
