@@ -27,6 +27,7 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.extensions.GitHubProject;
 import qupath.lib.gui.extensions.QuPathExtension;
 import qupath.lib.gui.tools.MenuTools;
+import qupath.lib.scripting.QP;
 import qupath.opencv.dnn.DnnModelBuilder;
 import qupath.opencv.dnn.DnnModels;
 
@@ -50,6 +51,11 @@ public class DjlExtension implements QuPathExtension, GitHubProject {
 
 	@Override
 	public void installExtension(QuPathGUI qupath) {
+		if (Version.COMPARATOR_MAJOR_MINOR_PATCH.compare(QuPathGUI.getVersion(), Version.parse("0.6.0")) < 0) {
+			QP.removeDetections();
+		} else {
+			QP.clearDetections();
+		}
 		if (Version.COMPARATOR_MAJOR_MINOR_PATCH.compare(QuPathGUI.getVersion(), getQuPathVersion()) < 0) {
 			throw new UnsupportedOperationException("This extension version is incompatible with QuPath < v" + getQuPathVersion());
 		}
