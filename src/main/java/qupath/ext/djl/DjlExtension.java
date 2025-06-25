@@ -51,11 +51,6 @@ public class DjlExtension implements QuPathExtension, GitHubProject {
 
 	@Override
 	public void installExtension(QuPathGUI qupath) {
-		if (Version.COMPARATOR_MAJOR_MINOR_PATCH.compare(QuPathGUI.getVersion(), Version.parse("0.6.0")) < 0) {
-			QP.removeDetections();
-		} else {
-			QP.clearDetections();
-		}
 		if (Version.COMPARATOR_MAJOR_MINOR_PATCH.compare(QuPathGUI.getVersion(), getQuPathVersion()) < 0) {
 			throw new UnsupportedOperationException("This extension version is incompatible with QuPath < v" + getQuPathVersion());
 		}
