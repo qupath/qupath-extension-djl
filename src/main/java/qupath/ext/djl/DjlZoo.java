@@ -358,17 +358,16 @@ public class DjlZoo {
 	 */
 	public static ROI createROI(Mask mask, ImageRegion region, double threshold) {
 		float[][] probs = mask.getProbDist();
-		int w = probs.length;
-		int h = probs[0].length;
+		int h = probs.length;
+		int w = probs[0].length;
 		var buffer = new DataBufferFloat(w * h, 1);
 		var sampleModel = new BandedSampleModel(buffer.getDataType(), w, h, 1);
 		var raster = WritableRaster.createWritableRaster(sampleModel, buffer, null);
-		for (int x = 0; x < w; x++) {
-			float[] col = probs[x];
-			for (int y = 0; y < h; y++) {
-				raster.setSample(x, y, 0, col[y]);
-			}
-		}
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                raster.setSample(x, y, 0, probs[y][x]);
+            }
+        }
 		if (region == null)
 			region = ImageRegion.createInstance(0, 0, w, h, 0, 0);
 		var geometry = ContourTracing.createTracedGeometry(raster, threshold, Double.POSITIVE_INFINITY, 0, null);
@@ -377,8 +376,10 @@ public class DjlZoo {
 
 		var transform = new AffineTransformation();
 		transform.scale(1.0/raster.getWidth(), 1.0/raster.getHeight());
-		transform.scale(bounds.getWidth(), bounds.getHeight());
-		transform.translate(bounds.getX(), bounds.getY());
+        if(!mask.isFullImageMask()) {
+            transform.scale(bounds.getWidth(), bounds.getHeight());
+            transform.translate(bounds.getX(), bounds.getY());
+        }
 		transform.scale(region.getWidth(), region.getHeight());
 		transform.translate(region.getX(), region.getY());
 
