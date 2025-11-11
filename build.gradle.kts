@@ -5,7 +5,7 @@ plugins {
 
 qupathExtension {
 	name = "qupath-extension-djl"
-	version = "0.4.0"
+	version = "0.4.1-SNAPSHOT"
 	group = "io.github.qupath"
 	description = "QuPath extension to use Deep Java Library"
 	automaticModule = "qupath.extension.djl"
