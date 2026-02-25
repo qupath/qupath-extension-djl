@@ -404,7 +404,9 @@ public class DjlTools {
 			array = manager.create(buffer, shape, dataType);			
 		} else if (("NCHW".equals(ndLayout) || "CHW".equals(ndLayout)) && (nChannels == 3L || nChannels == 4L)) {
 			// Channels-first - an OpenCV blob is defined to have the order NCHW, but an Image can only have 1, 3 or 4 channels
-			array = manager.create(opencv_dnn.blobFromImage(mat).createBuffer(), shape, dataType);
+			try (var blob = opencv_dnn.blobFromImage(mat)) {
+				array = manager.create(blob.createBuffer(), shape, dataType);
+			}
 		} else {
 			// Really awkward strategy to handle channels in an uncommon place (shouldn't actually occur?)
 			var shapeDims = shape.getShape().clone();
