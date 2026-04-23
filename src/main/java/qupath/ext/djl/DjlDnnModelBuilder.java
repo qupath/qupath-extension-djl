@@ -1,5 +1,5 @@
 /*-
- * Copyright 2022 QuPath developers, University of Edinburgh
+ * Copyright 2022 - 2026 QuPath developers, University of Edinburgh
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,21 +37,15 @@ public class DjlDnnModelBuilder implements DnnModelBuilder {
 	private static String getEngineName(String framework) {
 		if (DjlTools.ALL_ENGINES.contains(framework))
 			return framework;
-		
-		switch(framework) {
-		case DnnModelParams.FRAMEWORK_TENSORFLOW:
-			return DjlTools.ENGINE_TENSORFLOW;
-		case DnnModelParams.FRAMEWORK_TF_LITE:
-			return DjlTools.ENGINE_TFLITE;
-		case DnnModelParams.FRAMEWORK_ONNX_RUNTIME:
-			return DjlTools.ENGINE_ONNX_RUNTIME;
-		case DnnModelParams.FRAMEWORK_PYTORCH:
-			return DjlTools.ENGINE_PYTORCH;
-		case DnnModelParams.FRAMEWORK_MXNET:
-			return DjlTools.ENGINE_MXNET;
-		default:
-			return null;
-		}
+
+        return switch (framework) {
+            case DnnModelParams.FRAMEWORK_TENSORFLOW -> DjlTools.ENGINE_TENSORFLOW;
+            case DnnModelParams.FRAMEWORK_TF_LITE -> DjlTools.ENGINE_TFLITE;
+            case DnnModelParams.FRAMEWORK_ONNX_RUNTIME -> DjlTools.ENGINE_ONNX_RUNTIME;
+            case DnnModelParams.FRAMEWORK_PYTORCH -> DjlTools.ENGINE_PYTORCH;
+            case DnnModelParams.FRAMEWORK_MXNET -> DjlTools.ENGINE_MXNET;
+            default -> null;
+        };
 	}
 	
 	
