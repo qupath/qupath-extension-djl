@@ -1,5 +1,5 @@
 /*-
- * Copyright 2022-2023 QuPath developers, University of Edinburgh
+ * Copyright 2022-2026 QuPath developers, University of Edinburgh
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ package qupath.ext.djl.ui;
 import java.nio.file.Files;
 import java.util.ResourceBundle;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -58,6 +58,7 @@ import javafx.scene.shape.Circle;
 import javafx.stage.Stage;
 import qupath.ext.djl.DjlTools;
 import qupath.fx.dialogs.Dialogs;
+import qupath.fx.utils.FXUtils;
 import qupath.fx.utils.GridPaneUtils;
 import qupath.lib.common.GeneralTools;
 import qupath.lib.common.ThreadTools;
@@ -166,36 +167,24 @@ public class DjlEngineCommand {
 				status.get() == EngineStatus.AVAILABLE || status.get() == EngineStatus.PENDING,
 				status));
 			btnDownload.textProperty().bind(Bindings.createStringBinding(() -> {
-				switch (status.get()) {
-				case AVAILABLE:
-					return bundle.getString("button.download.available");
-				case FAILED:
-					return bundle.getString("button.download.failed");
-				case PENDING:
-					return bundle.getString("button.download.pending");
-				case UNAVAILABLE:
-					return bundle.getString("button.download.unavailable");
-				case UNKNOWN:
-				default:
-					return bundle.getString("button.download.unknown");
-				}
+                return switch (status.get()) {
+                    case AVAILABLE -> bundle.getString("button.download.available");
+                    case FAILED -> bundle.getString("button.download.failed");
+                    case PENDING -> bundle.getString("button.download.pending");
+                    case UNAVAILABLE -> bundle.getString("button.download.unavailable");
+                    default -> bundle.getString("button.download.unknown");
+                };
 			}, status));
 			
 			var tooltipDownload = new Tooltip();
 			tooltipDownload.textProperty().bind(Bindings.createStringBinding(() -> {
-				switch (status.get()) {
-					case AVAILABLE:
-						return String.format(bundle.getString("tooltip.download.available"), name);
-					case FAILED:
-						return String.format(bundle.getString("tooltip.download.failed"), name);
-					case PENDING:
-						return String.format(bundle.getString("tooltip.download.pending"), name);
-					case UNAVAILABLE:
-						return String.format(bundle.getString("tooltip.download.unavailable"), name);
-					case UNKNOWN:
-					default:
-						return String.format(bundle.getString("tooltip.download.unknown"), name);
-				}
+                return switch (status.get()) {
+                    case AVAILABLE -> String.format(bundle.getString("tooltip.download.available"), name);
+                    case FAILED -> String.format(bundle.getString("tooltip.download.failed"), name);
+                    case PENDING -> String.format(bundle.getString("tooltip.download.pending"), name);
+                    case UNAVAILABLE -> String.format(bundle.getString("tooltip.download.unavailable"), name);
+                    default -> String.format(bundle.getString("tooltip.download.unknown"), name);
+                };
 			}, status));
 			btnDownload.setTooltip(tooltipDownload);
 			
@@ -254,12 +243,13 @@ public class DjlEngineCommand {
 		stage.initOwner(QuPathGUI.getInstance().getStage());
 //		stage.initModality(Modality.WINDOW_MODAL);
 		stage.setScene(new Scene(pane));
+		FXUtils.addCloseWindowShortcuts(stage);
 	}
 
 	private static void updateIconFromStatus(EngineStatus status, Node node) {
 		if (status == null)
 			status = EngineStatus.UNKNOWN;
-		node.getStyleClass().setAll("djl-engine-status", status.name().toString().toLowerCase());
+		node.getStyleClass().setAll("djl-engine-status", status.name().toLowerCase());
 	}
 
 	private static void updateVersionFromStatus(EngineStatus status, String engineName, Label labelVersion) {
@@ -336,23 +326,24 @@ public class DjlEngineCommand {
 
 	private void checkEngineStatus(String name, ObjectProperty<EngineStatus> status, long timeoutMillis, boolean doQuietly) {
 		// Request the engine in a background thread, triggering download if necessary
-		var pool = Executors.newSingleThreadExecutor(ThreadTools.createThreadFactory("djl-engine-request", true));
-		updateStatus(status, EngineStatus.PENDING);
-		var future = pool.submit((Callable<Boolean>)() -> checkEngineAvailability(name, status, doQuietly));
-		if (timeoutMillis <= 0)
-			return;
-		pool.shutdown();
+		Future<Boolean> future;
+		try (var pool = Executors.newSingleThreadExecutor(ThreadTools.createThreadFactory("djl-engine-request", true))) {
+			updateStatus(status, EngineStatus.PENDING);
+			future = pool.submit(() -> checkEngineAvailability(name, status, doQuietly));
+			if (timeoutMillis <= 0)
+				return;
+		}
 		try {
 			// Wait until the timeout - engine might already be available & return quickly
 			var result = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
-			if (result != null && result.booleanValue()) {
+			if (result != null && result) {
 				Dialogs.showInfoNotification(TITLE, String.format(bundle.getString("notify.engine.available"), name));
 			} else
 				logger.debug("No engine available for {}", name);
 		} catch (InterruptedException e) {
-			logger.error("Requesting for engine " + name + "interrupted!", e);
+            logger.error("Request for engine {} interrupted!", name, e);
 		} catch (ExecutionException e) {
-			logger.error("Error requesting engine " + name + ": " + e.getLocalizedMessage(), e);
+            logger.error("Error requesting engine {}: {}", name, e.getMessage(), e);
 		} catch (TimeoutException e) {
 			logger.debug("Request for engine {} timed out - likely either initializing or downloading", name);
 		}
